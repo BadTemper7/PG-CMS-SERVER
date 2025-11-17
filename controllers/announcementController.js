@@ -176,3 +176,7 @@ export const getActiveAnnouncements = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const getSampleResult = (req, res) => {
+  res.send("this is working properly");
+};
