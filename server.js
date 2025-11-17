@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import announcementRoutes from "./routes/announcementRoutes.js";
 import { connectDB } from "./utils/db.js";
+import Announcement from "./models/Announcement.js";
 
 dotenv.config();
 const app = express();
@@ -20,18 +21,7 @@ connectDB();
 // app.use("/api/announcements", announcementRoutes);
 
 app.get("/announcements", async (req, res) => {
-  const { status, activeOnly } = req.query;
-  let filter = {};
-  if (status) filter.status = status;
-  if (activeOnly === "true") {
-    filter.status = "active";
-    filter.$or = [
-      { expiry: { $exists: false } },
-      { expiry: null },
-      { expiry: { $gt: new Date() } },
-    ];
-  }
-  const announcements = await Announcement.find(filter).sort({ createdAt: -1 });
+  const announcements = await Announcement.find();
   res.json(announcements);
 });
 
