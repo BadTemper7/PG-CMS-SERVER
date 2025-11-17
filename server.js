@@ -20,4 +20,3 @@ app.use("/api/announcements", announcementRoutes);
 connectDB();
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-

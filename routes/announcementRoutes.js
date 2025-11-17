@@ -6,18 +6,19 @@ import {
   updateAnnouncement,
   deleteAnnouncement,
   updateAnnouncementStatus,
+  getSampleResult,
 } from "../controllers/announcementController.js";
 
 const router = express.Router();
 
 // Admin routes
 // router.post("/", createAnnouncement);
-router.get("/", getAnnouncements);
+// router.get("/", getAnnouncements);
 // router.get("/:id", getAnnouncementById);
 // router.put("/:id", updateAnnouncement);
 // router.patch("/:id/status", updateAnnouncementStatus);
 // router.delete("/:id", deleteAnnouncement);
 
-// router.get("/", getSampleResult);
+router.get("/", getSampleResult);
 
 export default router;
