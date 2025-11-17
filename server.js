@@ -17,6 +17,22 @@ app.use(express.json());
 connectDB();
 
 // Routes
-app.use("/api/announcements", announcementRoutes);
+// app.use("/api/announcements", announcementRoutes);
+
+app.get("/announcements", async (req, res) => {
+  const { status, activeOnly } = req.query;
+  let filter = {};
+  if (status) filter.status = status;
+  if (activeOnly === "true") {
+    filter.status = "active";
+    filter.$or = [
+      { expiry: { $exists: false } },
+      { expiry: null },
+      { expiry: { $gt: new Date() } },
+    ];
+  }
+  const announcements = await Announcement.find(filter).sort({ createdAt: -1 });
+  res.json(announcements);
+});
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
