@@ -13,10 +13,10 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Routes
-app.use("/api/announcements", announcementRoutes);
-
 // Connect to MongoDB
 connectDB();
+
+// Routes
+app.use("/api/announcements", announcementRoutes);
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
