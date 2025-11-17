@@ -9,9 +9,17 @@ import {
   getActiveAnnouncements,
 } from "../controllers/announcementController.js";
 
+import { connectDB } from "../utils/db.js";
+
 const router = express.Router();
 
-// Public route - get active announcements
+// Ensure DB is connected before handling requests
+router.use(async (req, res, next) => {
+  await connectDB();
+  next();
+});
+
+// Public route
 router.get("/public/active", getActiveAnnouncements);
 
 // Admin routes
