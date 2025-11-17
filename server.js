@@ -1,11 +1,11 @@
 import express from "express";
-import cors from "cors";
 import dotenv from "dotenv";
-import announcementRoutes from "./routes/announcementRoutes.js";
+import cors from "cors";
 import { connectDB } from "./utils/db.js";
-import Announcement from "./models/Announcement.js";
+import announcementRoutes from "./routes/announcementRoutes.js";
 
 dotenv.config();
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -13,30 +13,28 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Connect to MongoDB and start server only after connection
-const startServer = async () => {
+// Connect to MongoDB
+connectDB();
+
+// Routes
+app.use("/api/announcements", announcementRoutes);
+
+// Test MongoDB connection route
+app.get("/api/test-mongo", async (req, res) => {
   try {
-    await connectDB();
-    console.log("MongoDB connected");
-
-    // Routes
-    // app.use("/api/announcements", announcementRoutes);
-
-    app.get("/announcements", async (req, res) => {
-      try {
-        const announcements = await Announcement.find().sort({ createdAt: -1 });
-        res.json(announcements);
-      } catch (err) {
-        console.error("Error fetching announcements:", err);
-        res.status(500).json({ error: "Internal Server Error" });
-      }
-    });
-
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+    const mongoose = await import("mongoose");
+    const conn = mongoose.connection;
+    if (conn.readyState === 1) {
+      res.json({ message: "MongoDB is connected" });
+    } else {
+      res.status(500).json({ message: "MongoDB not connected" });
+    }
   } catch (err) {
-    console.error("Failed to connect to MongoDB:", err);
-    process.exit(1);
+    res
+      .status(500)
+      .json({ message: "MongoDB connection failed", error: err.message });
   }
-};
+});
 
-startServer();
+// Start server
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
