@@ -9,8 +9,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// app.use("/api/announcements", announcementRoutes);
-app.get("/api/announcements", (req, res) => {
-  res.send("Server is working properly.");
-});
+app.use("/api/announcements", announcementRoutes);
+// app.get("/api/announcements", (req, res) => {
+//   res.send("Server is working properly.");
+// });
 export default app;

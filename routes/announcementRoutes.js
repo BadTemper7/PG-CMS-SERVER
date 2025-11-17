@@ -7,7 +7,6 @@ import {
   deleteAnnouncement,
   updateAnnouncementStatus,
   getActiveAnnouncements,
-  getSampleResult,
 } from "../controllers/announcementController.js";
 
 import { connectDB } from "../utils/db.js";
@@ -24,14 +23,14 @@ router.use(async (req, res, next) => {
 router.get("/public/active", getActiveAnnouncements);
 
 // Admin routes
-router.post("/", createAnnouncement);
+// router.post("/", createAnnouncement);
 router.get("/", getAnnouncements);
 router.get("/:id", getAnnouncementById);
 router.put("/:id", updateAnnouncement);
 router.patch("/:id/status", updateAnnouncementStatus);
 router.delete("/:id", deleteAnnouncement);
 
-router.get("/public", (req, res) => {
+router.get("/", (req, res) => {
   res.send("Server is working properly.");
 });
 
