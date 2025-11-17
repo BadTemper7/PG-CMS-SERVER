@@ -19,5 +19,5 @@ app.use("/api/announcements", announcementRoutes);
 // Connect to MongoDB
 connectDB();
 
-// app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-export default app;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
