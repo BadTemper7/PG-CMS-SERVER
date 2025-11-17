@@ -117,7 +117,7 @@ export const updateNotification = async (req, res) => {
     }
 
     res.status(200).json({
-      message: "Announcement updated successfully",
+      message: "Notification updated successfully",
       notification: updatedNotification,
     });
   } catch (err) {
