@@ -63,7 +63,10 @@ export const createNotification = async (req, res) => {
       status: status || "active",
     });
 
-    res.status(201).json({ notification: newNotification });
+    res.status(201).json({
+      message: "Notification created successfully",
+      notification: newNotification,
+    });
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Failed to create notification" });
@@ -113,7 +116,10 @@ export const updateNotification = async (req, res) => {
       return res.status(404).json({ error: "Notification not found" });
     }
 
-    res.status(200).json({ notification: updatedNotification });
+    res.status(200).json({
+      message: "Announcement updated successfully",
+      notification: updatedNotification,
+    });
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: "Failed to update notification" });
