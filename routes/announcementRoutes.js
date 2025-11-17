@@ -14,21 +14,21 @@ import { connectDB } from "../utils/db.js";
 const router = express.Router();
 
 // Ensure DB is connected before handling requests
-router.use(async (req, res, next) => {
-  await connectDB();
-  next();
-});
+// router.use(async (req, res, next) => {
+//   await connectDB();
+//   next();
+// });
 
 // Public route
-router.get("/public/active", getActiveAnnouncements);
+// router.get("/public/active", getActiveAnnouncements);
 
 // Admin routes
 // router.post("/", createAnnouncement);
-router.get("/", getAnnouncements);
-router.get("/:id", getAnnouncementById);
-router.put("/:id", updateAnnouncement);
-router.patch("/:id/status", updateAnnouncementStatus);
-router.delete("/:id", deleteAnnouncement);
+// router.get("/", getAnnouncements);
+// router.get("/:id", getAnnouncementById);
+// router.put("/:id", updateAnnouncement);
+// router.patch("/:id/status", updateAnnouncementStatus);
+// router.delete("/:id", deleteAnnouncement);
 
 router.get("/", (req, res) => {
   res.send("Server is working properly.");
