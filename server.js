@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import announcementRoutes from "./routes/announcementRoutes.js";
 import { connectDB } from "./utils/db.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import { expireNotificationsJob } from "./cron/expireNotifications.js";
 
 dotenv.config();
 const app = express();
@@ -14,6 +15,8 @@ app.use(express.json());
 
 async function startServer() {
   await connectDB();
+
+  expireNotificationsJob();
 
   app.use("/api/announcements", announcementRoutes);
   app.use("/api/notifications", notificationRoutes);

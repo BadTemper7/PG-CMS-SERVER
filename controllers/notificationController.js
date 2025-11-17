@@ -29,6 +29,33 @@ export const createNotification = async (req, res) => {
   try {
     const { title, message, expiry, status } = req.body;
 
+    // ===== DATE VALIDATION (NO TIMEZONE BUGS) =====
+    if (expiry) {
+      // expiry must be YYYY-MM-DD
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
+        return res.status(400).json({ error: "Invalid expiry date format" });
+      }
+
+      // Convert expiry safely — NO timezone shifts
+      const [year, month, day] = expiry.split("-").map(Number);
+      const expDate = new Date(Date.UTC(year, month - 1, day));
+
+      if (isNaN(expDate.getTime())) {
+        return res.status(400).json({ error: "Invalid expiry date" });
+      }
+
+      // Today's date (UTC, no time)
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+
+      if (expDate < today) {
+        return res
+          .status(400)
+          .json({ error: "Expiry date cannot be earlier than today" });
+      }
+    }
+
+    // ===== CREATE ONLY IF VALID =====
     const newNotification = await Notification.create({
       title,
       message,
@@ -38,6 +65,7 @@ export const createNotification = async (req, res) => {
 
     res.status(201).json({ notification: newNotification });
   } catch (err) {
+    console.error(err);
     res.status(400).json({ error: "Failed to create notification" });
   }
 };
@@ -45,19 +73,49 @@ export const createNotification = async (req, res) => {
 // UPDATE NOTIFICATION
 export const updateNotification = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { expiry } = req.body;
 
+    // ===== DATE VALIDATION =====
+    if (expiry) {
+      // Must be YYYY-MM-DD format
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
+        return res.status(400).json({ error: "Invalid expiry date format" });
+      }
+
+      // Convert expiry string WITHOUT timezone issues
+      const [year, month, day] = expiry.split("-").map(Number);
+      const expDate = new Date(Date.UTC(year, month - 1, day));
+
+      if (isNaN(expDate.getTime())) {
+        return res.status(400).json({ error: "Invalid expiry date" });
+      }
+
+      // Today's date in UTC (no time)
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+
+      // Reject dates earlier than today
+      if (expDate < today) {
+        return res
+          .status(400)
+          .json({ error: "Expiry date cannot be earlier than today" });
+      }
+    }
+
+    // ===== UPDATE =====
     const updatedNotification = await Notification.findByIdAndUpdate(
-      id,
+      req.params.id,
       req.body,
       { new: true }
     );
 
-    if (!updatedNotification)
+    if (!updatedNotification) {
       return res.status(404).json({ error: "Notification not found" });
+    }
 
     res.status(200).json({ notification: updatedNotification });
   } catch (err) {
+    console.error(err);
     res.status(400).json({ error: "Failed to update notification" });
   }
 };
