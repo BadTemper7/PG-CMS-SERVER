@@ -6,21 +6,10 @@ import {
   updateAnnouncement,
   deleteAnnouncement,
   updateAnnouncementStatus,
-  getActiveAnnouncements,
+  getSampleResult,
 } from "../controllers/announcementController.js";
 
-import { connectDB } from "../utils/db.js";
-
 const router = express.Router();
-
-// Ensure DB is connected before handling requests
-// router.use(async (req, res, next) => {
-//   await connectDB();
-//   next();
-// });
-
-// Public route
-// router.get("/public/active", getActiveAnnouncements);
 
 // Admin routes
 // router.post("/", createAnnouncement);
@@ -30,8 +19,6 @@ const router = express.Router();
 // router.patch("/:id/status", updateAnnouncementStatus);
 // router.delete("/:id", deleteAnnouncement);
 
-router.get("/", (req, res) => {
-  res.send("Server is working properly.");
-});
+router.get("/", getSampleResult);
 
 export default router;
