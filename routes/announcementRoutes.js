@@ -7,7 +7,7 @@ import {
   deleteAnnouncement,
   updateAnnouncementStatus,
   getActiveAnnouncements,
-  getSampleResult
+  getSampleResult,
 } from "../controllers/announcementController.js";
 
 import { connectDB } from "../utils/db.js";
@@ -31,7 +31,8 @@ router.put("/:id", updateAnnouncement);
 router.patch("/:id/status", updateAnnouncementStatus);
 router.delete("/:id", deleteAnnouncement);
 
-
-router.get("/public", getSampleResult)
+router.get("/public", (req, res) => {
+  res.send("Server is working properly.");
+});
 
 export default router;
