@@ -1,28 +1,21 @@
 import express from "express";
-import mongoose from "mongoose";
+import cors from "cors";
+import dotenv from "dotenv";
+import announcementRoutes from "./routes/announcementRoutes.js";
 import { connectDB } from "./utils/db.js";
 
+dotenv.config();
 const app = express();
+const PORT = process.env.PORT || 5000;
 
-app.get("/api/test-mongo", async (req, res) => {
-  try {
-    // Wait for the connection to complete
-    await connectDB();
+app.use(cors());
+app.use(express.json());
 
-    const conn = mongoose.connection;
-    if (conn.readyState === 1) {
-      res.status(200).json({ message: "MongoDB is connected" });
-    } else {
-      res
-        .status(500)
-        .json({ message: "MongoDB not connected", state: conn.readyState });
-    }
-  } catch (err) {
-    console.error("MongoDB test error:", err);
-    res
-      .status(500)
-      .json({ message: "MongoDB connection failed", error: err.message });
-  }
-});
+async function startServer() {
+  await connectDB(); // wait for DB to connect
 
-export default app;
+  app.use("/api/announcements", announcementRoutes);
+
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
+startServer();

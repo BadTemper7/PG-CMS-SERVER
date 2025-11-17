@@ -6,7 +6,6 @@ import {
   updateAnnouncement,
   deleteAnnouncement,
   updateAnnouncementStatus,
-  getSampleResult,
 } from "../controllers/announcementController.js";
 
 const router = express.Router();
@@ -18,7 +17,5 @@ router.get("/:id", getAnnouncementById);
 router.put("/:id", updateAnnouncement);
 router.patch("/:id/status", updateAnnouncementStatus);
 router.delete("/:id", deleteAnnouncement);
-
-// router.get("/", getSampleResult);
 
 export default router;

@@ -33,19 +33,11 @@ export const getAnnouncements = async (req, res) => {
 
     let filter = {};
 
-    // Filter by status if provided
-    if (status) {
-      filter.status = status;
-    }
-
-    // If activeOnly is true, get only active announcements that haven't expired
     if (activeOnly === "true") {
       filter.status = "active";
-      filter.$or = [
-        { expiry: { $exists: false } },
-        { expiry: null },
-        { expiry: { $gt: new Date() } },
-      ];
+      filter.$or = [{ expiry: { $gt: new Date() } }, { expiry: null }];
+    } else if (status) {
+      filter.status = status;
     }
 
     const announcements = await Announcement.find(filter).sort({
@@ -53,7 +45,8 @@ export const getAnnouncements = async (req, res) => {
     });
     res.json(announcements);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error fetching announcements:", error);
+    res.status(500).json({ error: "Server error" });
   }
 };
 
