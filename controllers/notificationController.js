@@ -141,3 +141,23 @@ export const deleteNotification = async (req, res) => {
     res.status(400).json({ error: "Failed to delete notification" });
   }
 };
+
+// DELETE MANY NOTIFICATIONS
+export const deleteManyNotifications = async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No IDs provided" });
+    }
+
+    const result = await Notification.deleteMany({ _id: { $in: ids } });
+
+    return res.json({
+      message: `${result.deletedCount} notifications deleted successfully`,
+    });
+  } catch (err) {
+    console.error("Bulk delete error:", err);
+    return res.status(500).json({ message: "Bulk delete failed" });
+  }
+};

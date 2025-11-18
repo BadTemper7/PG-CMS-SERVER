@@ -5,6 +5,7 @@ import {
   createNotification,
   updateNotification,
   deleteNotification,
+  deleteManyNotifications,
 } from "../controllers/notificationController.js";
 
 const router = express.Router();
@@ -16,5 +17,6 @@ router.get("/:id", getNotificationById); // GET one by ID
 router.post("/", createNotification);
 router.put("/:id", updateNotification);
 router.delete("/:id", deleteNotification);
+router.post("/bulk-delete", deleteManyNotifications);
 
 export default router;
