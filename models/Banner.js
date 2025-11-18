@@ -17,8 +17,8 @@ const bannerSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Active", "Hide", "Expired"],
-      default: "Active",
+      enum: ["active", "hide", "expired"],
+      default: "active",
     },
   },
   { timestamps: { createdAt: "createdAt", updatedAt: false } }
