@@ -54,20 +54,37 @@ export const getAllBanners = async (req, res) => {
 export const updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, expiry, url } = req.body; // Destructure status, expiry, and url from the request body
 
+    // Validate status
     if (!["active", "hide", "expired"].includes(status)) {
       return res.status(400).json({ message: "Invalid status" });
     }
 
-    const banner = await Banner.findByIdAndUpdate(
-      id,
-      { status },
-      { new: true }
-    );
+    // Prepare the update data
+    const updateData = { status };
 
-    if (!banner) return res.status(404).json({ message: "Banner not found" });
+    // If expiry is provided, add it to the update data
+    if (expiry) {
+      updateData.expiry = expiry;
+    }
 
+    // If url is provided, add it to the update data
+    if (url) {
+      updateData.url = url;
+    }
+
+    // Update the banner in the database
+    const banner = await Banner.findByIdAndUpdate(id, updateData, {
+      new: true,
+    });
+
+    // Check if the banner was found
+    if (!banner) {
+      return res.status(404).json({ message: "Banner not found" });
+    }
+
+    // Return the updated banner
     res.json({ message: "Status updated", banner });
   } catch (err) {
     res.status(500).json({ message: err.message });
