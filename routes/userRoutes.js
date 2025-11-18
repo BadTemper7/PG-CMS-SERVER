@@ -5,6 +5,7 @@ import {
   getUsers,
   getUserById,
   deleteUser,
+  deleteManyUsers,
 } from "../controllers/userController.js";
 
 import {
@@ -22,5 +23,6 @@ router.get("/", getUsers); // admin/superadmin
 router.get("/:id", protect, adminOnly, getUserById); // admin/superadmin
 
 router.delete("/:id", protect, superadminOnly, deleteUser); // only superadmin
+router.post("/bulk-delete", deleteManyUsers);
 
 export default router;

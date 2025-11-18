@@ -87,3 +87,23 @@ export const deleteBanner = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// DELETE MANY BANNERS
+export const deleteManyBanners = async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No IDs provided" });
+    }
+
+    const result = await Banner.deleteMany({ _id: { $in: ids } });
+
+    return res.json({
+      message: `${result.deletedCount} banners deleted successfully`,
+    });
+  } catch (err) {
+    console.error("Bulk delete banner error:", err);
+    return res.status(500).json({ message: "Bulk banner delete failed" });
+  }
+};

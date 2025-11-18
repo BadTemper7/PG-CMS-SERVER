@@ -86,3 +86,27 @@ export const deleteUser = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// DELETE MANY USERS
+export const deleteManyUsers = async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No IDs provided" });
+    }
+
+    // Optional safety: prevent deleting super admin
+    // const protectedIds = ["12345SUPERADMINID"];
+    // ids = ids.filter(id => !protectedIds.includes(id));
+
+    const result = await User.deleteMany({ _id: { $in: ids } });
+
+    return res.json({
+      message: `${result.deletedCount} users deleted successfully`,
+    });
+  } catch (err) {
+    console.error("Bulk delete user error:", err);
+    return res.status(500).json({ message: "Bulk user delete failed" });
+  }
+};

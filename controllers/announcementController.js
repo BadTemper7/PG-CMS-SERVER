@@ -173,3 +173,23 @@ export const getActiveAnnouncements = async (req, res) => {
 export const getSampleResult = (req, res) => {
   res.send("this is working properly");
 };
+
+// DELETE MANY ANNOUNCEMENTS
+export const deleteManyAnnouncements = async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No IDs provided" });
+    }
+
+    const result = await Announcement.deleteMany({ _id: { $in: ids } });
+
+    return res.json({
+      message: `${result.deletedCount} announcements deleted successfully`,
+    });
+  } catch (err) {
+    console.error("Bulk delete announcement error:", err);
+    return res.status(500).json({ message: "Bulk announcement delete failed" });
+  }
+};
