@@ -10,7 +10,7 @@ const router = express.Router();
 
 router.post("/", createBanner);
 router.get("/", getAllBanners);
-router.put("/:id/status", updateStatus);
+router.put("/:id", updateStatus);
 router.delete("/:id", deleteBanner);
 router.post("/bulk-delete", deleteManyBanners);
 
