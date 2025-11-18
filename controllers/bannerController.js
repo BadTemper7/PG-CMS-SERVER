@@ -19,7 +19,7 @@ export const createBanner = async (req, res) => {
     const bannerData = {
       url,
       uploadedBy,
-      status: "Active",
+      status: "active",
     };
 
     // Add expiry ONLY if provided
@@ -56,7 +56,7 @@ export const updateStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!["Active", "Hide", "Expired"].includes(status)) {
+    if (!["active", "hide", "expired"].includes(status)) {
       return res.status(400).json({ message: "Invalid status" });
     }
 
