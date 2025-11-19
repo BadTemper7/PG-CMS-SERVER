@@ -4,8 +4,7 @@ import Banner from "../models/Banner.js";
 // CREATE BANNER
 export const createBanner = async (req, res) => {
   try {
-    const { url, uploadedBy, expiry, status, deviceMode, themeMode } = req.body;
-
+    const { url, uploadedBy, expiry, status, device, themeMode } = req.body;
     // Validate required fields
     if (!url || !uploadedBy)
       return res
@@ -22,7 +21,7 @@ export const createBanner = async (req, res) => {
       url,
       uploadedBy,
       status: status || "active", // Default to "active" if no status is provided
-      deviceMode: deviceMode || "desktop", // Default to "desktop" if no deviceMode is provided
+      device: device || "desktop", // Default to "desktop" if no deviceMode is provided
       themeMode: themeMode || "light", // Default to "light" if no themeMode is provided
     };
 
