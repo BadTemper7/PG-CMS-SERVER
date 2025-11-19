@@ -1,30 +1,35 @@
 import User from "../models/User.js";
 import Banner from "../models/Banner.js";
+
 // CREATE BANNER
 export const createBanner = async (req, res) => {
   try {
-    const { url, uploadedBy, expiry, status } = req.body;
+    const { url, uploadedBy, expiry, status, deviceMode, themeMode } = req.body;
 
+    // Validate required fields
     if (!url || !uploadedBy)
       return res
         .status(400)
         .json({ message: "URL and uploadedBy are required" });
 
-    // Check user exists
+    // Check if the user exists
     const userExists = await User.findById(uploadedBy);
     if (!userExists)
       return res.status(404).json({ message: "Uploader not found" });
 
-    // Build banner data object
+    // Build the banner data object
     const bannerData = {
       url,
       uploadedBy,
-      status: status || "active", // ✅ FIXED: use incoming status
+      status: status || "active", // Default to "active" if no status is provided
+      deviceMode: deviceMode || "desktop", // Default to "desktop" if no deviceMode is provided
+      themeMode: themeMode || "light", // Default to "light" if no themeMode is provided
     };
 
-    // Add expiry ONLY if provided
+    // Add expiry if provided
     if (expiry) bannerData.expiry = expiry;
 
+    // Create the banner in the database
     const banner = await Banner.create(bannerData);
 
     res.status(201).json({
@@ -53,16 +58,30 @@ export const getAllBanners = async (req, res) => {
 export const updateBanner = async (req, res) => {
   try {
     const { id } = req.params;
+    const { status, deviceMode, themeMode, expiry } = req.body;
 
-    const updatedBanner = await Banner.findByIdAndUpdate(id, req.body, {
-      new: true,
-    });
+    // Prepare the updated banner data
+    const updatedBannerData = {
+      status: status || "active", // Default to "active" if no status is provided
+      deviceMode: deviceMode || "desktop", // Default to "desktop" if no deviceMode is provided
+      themeMode: themeMode || "light", // Default to "light" if no themeMode is provided
+      expiry,
+    };
+
+    // Find and update the banner
+    const updatedBanner = await Banner.findByIdAndUpdate(
+      id,
+      updatedBannerData,
+      {
+        new: true,
+      }
+    );
 
     if (!updatedBanner) {
       return res.status(404).json({ message: "Banner not found" });
     }
 
-    return res.json({
+    res.json({
       message: "Banner updated successfully",
       banner: updatedBanner,
     });
@@ -89,7 +108,7 @@ export const updateBannerStatus = async (req, res) => {
       { status },
       { new: true }
     );
-    console.log(id);
+
     if (!banner) {
       return res.status(404).json({ message: "Banner not found" });
     }
@@ -101,6 +120,74 @@ export const updateBannerStatus = async (req, res) => {
   } catch (err) {
     console.error("Update banner status error:", err);
     return res.status(500).json({ message: "Failed to update banner status" });
+  }
+};
+// UPDATE BANNER THEME
+export const updateBannerTheme = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { themeMode } = req.body;
+
+    // Validate that themeMode is either 'light' or 'dark'
+    if (!themeMode || !["light", "dark"].includes(themeMode)) {
+      return res
+        .status(400)
+        .json({ message: "Valid themeMode (light or dark) is required" });
+    }
+
+    // Find and update the banner's theme mode
+    const banner = await Banner.findByIdAndUpdate(
+      id,
+      { themeMode },
+      { new: true } // Return the updated banner
+    );
+
+    if (!banner) {
+      return res.status(404).json({ message: "Banner not found" });
+    }
+
+    return res.json({
+      message: "Banner theme updated successfully",
+      banner,
+    });
+  } catch (err) {
+    console.error("Update banner theme error:", err);
+    return res.status(500).json({ message: "Failed to update banner theme" });
+  }
+};
+// UPDATE BANNER DEVICE MODE
+export const updateBannerDevice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { deviceMode } = req.body;
+
+    // Validate that deviceMode is either 'desktop' or 'mobile'
+    if (!deviceMode || !["desktop", "mobile"].includes(deviceMode)) {
+      return res
+        .status(400)
+        .json({ message: "Valid deviceMode (desktop or mobile) is required" });
+    }
+
+    // Find and update the banner's device mode
+    const banner = await Banner.findByIdAndUpdate(
+      id,
+      { deviceMode },
+      { new: true } // Return the updated banner
+    );
+
+    if (!banner) {
+      return res.status(404).json({ message: "Banner not found" });
+    }
+
+    return res.json({
+      message: "Banner device mode updated successfully",
+      banner,
+    });
+  } catch (err) {
+    console.error("Update banner device mode error:", err);
+    return res
+      .status(500)
+      .json({ message: "Failed to update banner device mode" });
   }
 };
 

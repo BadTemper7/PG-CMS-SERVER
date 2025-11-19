@@ -20,6 +20,16 @@ const bannerSchema = new mongoose.Schema(
       enum: ["active", "hide", "expired"],
       default: "active",
     },
+    device: {
+      type: String,
+      enum: ["desktop", "mobile"],
+      default: "desktop",
+    },
+    theme: {
+      type: String,
+      enum: ["light", "dark"],
+      default: "light",
+    },
   },
   { timestamps: { createdAt: "createdAt", updatedAt: false } }
 );
