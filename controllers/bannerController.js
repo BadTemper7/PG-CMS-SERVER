@@ -57,13 +57,12 @@ export const getAllBanners = async (req, res) => {
 export const updateBanner = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, device, themeMode, expiry } = req.body;
-
+    const { status, device, theme, expiry } = req.body;
     // Prepare the updated banner data
     const updatedBannerData = {
       status: status || "active", // Default to "active" if no status is provided
       device: device || "desktop", // Default to "desktop" if no deviceMode is provided
-      themeMode: themeMode || "light", // Default to "light" if no themeMode is provided
+      theme: theme || "light", // Default to "light" if no themeMode is provided
       expiry,
     };
 
@@ -125,10 +124,10 @@ export const updateBannerStatus = async (req, res) => {
 export const updateBannerTheme = async (req, res) => {
   try {
     const { id } = req.params;
-    const { themeMode } = req.body;
+    const { theme } = req.body;
 
     // Validate that themeMode is either 'light' or 'dark'
-    if (!themeMode || !["light", "dark"].includes(themeMode)) {
+    if (!theme || !["light", "dark"].includes(theme)) {
       return res
         .status(400)
         .json({ message: "Valid themeMode (light or dark) is required" });
@@ -137,7 +136,7 @@ export const updateBannerTheme = async (req, res) => {
     // Find and update the banner's theme mode
     const banner = await Banner.findByIdAndUpdate(
       id,
-      { themeMode },
+      { theme },
       { new: true } // Return the updated banner
     );
 
