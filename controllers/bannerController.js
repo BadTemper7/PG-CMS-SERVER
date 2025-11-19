@@ -57,12 +57,12 @@ export const getAllBanners = async (req, res) => {
 export const updateBanner = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, deviceMode, themeMode, expiry } = req.body;
+    const { status, device, themeMode, expiry } = req.body;
 
     // Prepare the updated banner data
     const updatedBannerData = {
       status: status || "active", // Default to "active" if no status is provided
-      deviceMode: deviceMode || "desktop", // Default to "desktop" if no deviceMode is provided
+      device: device || "desktop", // Default to "desktop" if no deviceMode is provided
       themeMode: themeMode || "light", // Default to "light" if no themeMode is provided
       expiry,
     };
@@ -158,10 +158,10 @@ export const updateBannerTheme = async (req, res) => {
 export const updateBannerDevice = async (req, res) => {
   try {
     const { id } = req.params;
-    const { deviceMode } = req.body;
+    const { device } = req.body;
 
     // Validate that deviceMode is either 'desktop' or 'mobile'
-    if (!deviceMode || !["desktop", "mobile"].includes(deviceMode)) {
+    if (!device || !["desktop", "mobile"].includes(device)) {
       return res
         .status(400)
         .json({ message: "Valid deviceMode (desktop or mobile) is required" });
@@ -170,7 +170,7 @@ export const updateBannerDevice = async (req, res) => {
     // Find and update the banner's device mode
     const banner = await Banner.findByIdAndUpdate(
       id,
-      { deviceMode },
+      { device },
       { new: true } // Return the updated banner
     );
 
