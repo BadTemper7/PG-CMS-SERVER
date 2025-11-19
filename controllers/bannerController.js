@@ -50,44 +50,57 @@ export const getAllBanners = async (req, res) => {
   }
 };
 
-// UPDATE BANNER STATUS
-export const updateStatus = async (req, res) => {
+export const updateBanner = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, expiry, url } = req.body; // Destructure status, expiry, and url from the request body
 
-    // Validate status
-    if (!["active", "hide", "expired"].includes(status)) {
-      return res.status(400).json({ message: "Invalid status" });
-    }
-
-    // Prepare the update data
-    const updateData = { status };
-
-    // If expiry is provided, add it to the update data
-    if (expiry) {
-      updateData.expiry = expiry;
-    }
-
-    // If url is provided, add it to the update data
-    if (url) {
-      updateData.url = url;
-    }
-
-    // Update the banner in the database
-    const banner = await Banner.findByIdAndUpdate(id, updateData, {
+    const updatedBanner = await Banner.findByIdAndUpdate(id, req.body, {
       new: true,
     });
 
-    // Check if the banner was found
+    if (!updatedBanner) {
+      return res.status(404).json({ message: "Banner not found" });
+    }
+
+    return res.json({
+      message: "Banner updated successfully",
+      banner: updatedBanner,
+    });
+  } catch (err) {
+    console.error("Update banner error:", err);
+    return res.status(500).json({ message: "Failed to update banner" });
+  }
+};
+
+/**
+ * UPDATE BANNER STATUS ONLY (active, hide, expired)
+ */
+export const updateBannerStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ message: "Status is required" });
+    }
+
+    const banner = await Banner.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true }
+    );
+    console.log(id);
     if (!banner) {
       return res.status(404).json({ message: "Banner not found" });
     }
 
-    // Return the updated banner
-    res.json({ message: "Status updated", banner });
+    return res.json({
+      message: "Banner status updated successfully",
+      banner,
+    });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Update banner status error:", err);
+    return res.status(500).json({ message: "Failed to update banner status" });
   }
 };
 
