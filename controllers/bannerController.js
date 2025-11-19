@@ -3,7 +3,7 @@ import Banner from "../models/Banner.js";
 // CREATE BANNER
 export const createBanner = async (req, res) => {
   try {
-    const { url, uploadedBy, expiry } = req.body;
+    const { url, uploadedBy, expiry, status } = req.body;
 
     if (!url || !uploadedBy)
       return res
@@ -19,7 +19,7 @@ export const createBanner = async (req, res) => {
     const bannerData = {
       url,
       uploadedBy,
-      status: "active",
+      status: status || "active", // ✅ FIXED: use incoming status
     };
 
     // Add expiry ONLY if provided
