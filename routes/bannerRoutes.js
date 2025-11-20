@@ -14,10 +14,10 @@ const router = express.Router();
 router.post("/", createBanner);
 router.get("/", getAllBanners);
 router.put("/:id", updateBanner);
-router.patch("/:id/status", updateBannerStatus);
+router.patch("/status/:id", updateBannerStatus);
 router.delete("/:id", deleteBanner);
 router.post("/bulk-delete", deleteManyBanners);
-router.patch("/:id/theme", updateBannerTheme);
-router.patch("/:id/device", updateBannerDevice);
+router.patch("/theme/:id", updateBannerTheme);
+router.patch("/device/:id", updateBannerDevice);
 
 export default router;
