@@ -125,20 +125,11 @@ export const updateBannerTheme = async (req, res) => {
   try {
     const { id } = req.params;
     const { theme } = req.body;
-
-    // Validate that themeMode is either 'light' or 'dark'
-    if (!theme || !["light", "dark"].includes(theme)) {
-      return res
-        .status(400)
-        .json({ message: "Valid themeMode (light or dark) is required" });
+    if (!theme) {
+      return res.status(400).json({ message: "Status is required" });
     }
 
-    // Find and update the banner's theme mode
-    const banner = await Banner.findByIdAndUpdate(
-      id,
-      { theme },
-      { new: true } // Return the updated banner
-    );
+    const banner = await Banner.findByIdAndUpdate(id, { theme }, { new: true });
 
     if (!banner) {
       return res.status(404).json({ message: "Banner not found" });
@@ -158,19 +149,14 @@ export const updateBannerDevice = async (req, res) => {
   try {
     const { id } = req.params;
     const { device } = req.body;
-
-    // Validate that deviceMode is either 'desktop' or 'mobile'
-    if (!device || !["desktop", "mobile"].includes(device)) {
-      return res
-        .status(400)
-        .json({ message: "Valid deviceMode (desktop or mobile) is required" });
+    if (!device) {
+      return res.status(400).json({ message: "Status is required" });
     }
 
-    // Find and update the banner's device mode
     const banner = await Banner.findByIdAndUpdate(
       id,
       { device },
-      { new: true } // Return the updated banner
+      { new: true }
     );
 
     if (!banner) {
@@ -178,7 +164,7 @@ export const updateBannerDevice = async (req, res) => {
     }
 
     return res.json({
-      message: "Banner device mode updated successfully",
+      message: "Banner device updated successfully",
       banner,
     });
   } catch (err) {
