@@ -14,9 +14,9 @@ const router = express.Router();
 router.post("/", createBanner);
 router.get("/", getAllBanners);
 router.put("/:id", updateBanner);
-router.patch("/status/:id", updateBannerStatus);
 router.delete("/:id", deleteBanner);
 router.post("/bulk-delete", deleteManyBanners);
+router.patch("/status/:id", updateBannerStatus);
 router.patch("/theme/:id", updateBannerTheme);
 router.patch("/device/:id", updateBannerDevice);
 

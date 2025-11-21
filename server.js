@@ -11,6 +11,7 @@ import announcementRoutes from "./routes/announcementRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
+import providerRoutes from "./routes/providerRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -30,8 +31,10 @@ async function startServer() {
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/users", userRoutes);
   app.use("/api/banners", bannerRoutes);
+  app.use("/api/providers", providerRoutes);
 
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
 
 startServer();
+
