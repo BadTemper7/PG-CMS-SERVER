@@ -1,4 +1,5 @@
 import Notification from "../models/Notification.js";
+import { broadcast } from "../wsServer.js";
 
 // GET ALL NOTIFICATIONS
 export const getNotifications = async (req, res) => {
@@ -63,6 +64,11 @@ export const createNotification = async (req, res) => {
       status: status || "active",
     });
 
+    broadcast({
+      type: "NOTIFICATION_UPDATED",
+      action: "create",
+      newNotification,
+    });
     res.status(201).json({
       message: "Notification created successfully",
       notification: newNotification,
@@ -115,7 +121,11 @@ export const updateNotification = async (req, res) => {
     if (!updatedNotification) {
       return res.status(404).json({ error: "Notification not found" });
     }
-
+    broadcast({
+      type: "NOTIFICATION_UPDATED",
+      action: "UPDATE",
+      updatedNotification,
+    });
     res.status(200).json({
       message: "Notification updated successfully",
       notification: updatedNotification,
@@ -135,7 +145,11 @@ export const deleteNotification = async (req, res) => {
 
     if (!deleted)
       return res.status(404).json({ error: "Notification not found" });
-
+    broadcast({
+      type: "NOTIFICATION_UPDATED",
+      action: "delete",
+      deleted,
+    });
     res.status(200).json({ message: "Notification deleted successfully" });
   } catch (err) {
     res.status(400).json({ error: "Failed to delete notification" });
@@ -152,7 +166,11 @@ export const deleteManyNotifications = async (req, res) => {
     }
 
     const result = await Notification.deleteMany({ _id: { $in: ids } });
-
+    broadcast({
+      type: "NOTIFICATION_UPDATED",
+      action: "delete",
+      result,
+    });
     return res.json({
       message: `${result.deletedCount} notifications deleted successfully`,
     });

@@ -1,5 +1,6 @@
 import User from "../models/User.js";
 import Banner from "../models/Banner.js";
+import { broadcast } from "../wsServer.js";
 
 // CREATE BANNER
 export const createBanner = async (req, res) => {
@@ -30,7 +31,11 @@ export const createBanner = async (req, res) => {
 
     // Create the banner in the database
     const banner = await Banner.create(bannerData);
-
+    broadcast({
+      type: "BANNER_UPDATED",
+      action: "create",
+      banner,
+    });
     res.status(201).json({
       message: "Banner created successfully",
       banner,
@@ -78,6 +83,11 @@ export const updateBanner = async (req, res) => {
     if (!updatedBanner) {
       return res.status(404).json({ message: "Banner not found" });
     }
+    broadcast({
+      type: "BANNER_UPDATED",
+      action: "update",
+      banner: updatedBanner,
+    });
 
     res.json({
       message: "Banner updated successfully",
@@ -111,6 +121,11 @@ export const updateBannerStatus = async (req, res) => {
       return res.status(404).json({ message: "Banner not found" });
     }
 
+    broadcast({
+      type: "BANNER_UPDATED",
+      action: "update",
+      banner,
+    });
     return res.json({
       message: "Banner status updated successfully",
       banner,
@@ -134,7 +149,11 @@ export const updateBannerTheme = async (req, res) => {
     if (!banner) {
       return res.status(404).json({ message: "Banner not found" });
     }
-
+    broadcast({
+      type: "BANNER_UPDATED",
+      action: "update",
+      banner,
+    });
     return res.json({
       message: "Banner theme updated successfully",
       banner,
@@ -162,7 +181,11 @@ export const updateBannerDevice = async (req, res) => {
     if (!banner) {
       return res.status(404).json({ message: "Banner not found" });
     }
-
+    broadcast({
+      type: "BANNER_UPDATED",
+      action: "update",
+      banner,
+    });
     return res.json({
       message: "Banner device updated successfully",
       banner,
@@ -182,7 +205,11 @@ export const deleteBanner = async (req, res) => {
 
     const banner = await Banner.findByIdAndDelete(id);
     if (!banner) return res.status(404).json({ message: "Banner not found" });
-
+    broadcast({
+      type: "BANNER_UPDATED",
+      action: "delete",
+      id,
+    });
     res.json({ message: "Banner deleted" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -199,7 +226,11 @@ export const deleteManyBanners = async (req, res) => {
     }
 
     const result = await Banner.deleteMany({ _id: { $in: ids } });
-
+    broadcast({
+      type: "BANNER_UPDATED",
+      action: "delete",
+      banner,
+    });
     return res.json({
       message: `${result.deletedCount} banners deleted successfully`,
     });

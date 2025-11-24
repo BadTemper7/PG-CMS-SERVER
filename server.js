@@ -13,6 +13,9 @@ import userRoutes from "./routes/userRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
 import providerRoutes from "./routes/providerRoutes.js";
 
+import http from "http";
+import { createWebSocketServer } from "./wsServer.js";
+
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,18 +26,27 @@ app.use(express.json());
 async function startServer() {
   await connectDB();
 
+  // cron jobs
   expireNotificationsJob();
   expireBannersJob();
   expireAnnouncementsJob();
 
+  // routes
   app.use("/api/announcements", announcementRoutes);
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/users", userRoutes);
   app.use("/api/banners", bannerRoutes);
   app.use("/api/providers", providerRoutes);
 
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  // Create HTTP server manually
+  const server = http.createServer(app);
+
+  // Attach WebSocket to same server
+  createWebSocketServer(server);
+
+  server.listen(PORT, () =>
+    console.log(`Server + WebSocket running on port ${PORT}`)
+  );
 }
 
 startServer();
-

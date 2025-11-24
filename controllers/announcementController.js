@@ -1,4 +1,5 @@
 import Announcement from "../models/Announcement.js";
+import { broadcast } from "../wsServer.js";
 
 // Create a new announcement
 export const createAnnouncement = async (req, res) => {
@@ -17,6 +18,11 @@ export const createAnnouncement = async (req, res) => {
     });
 
     const savedAnnouncement = await announcement.save();
+    broadcast({
+      type: "ANNOUNCEMENT_UPDATED",
+      action: "create",
+      announcement,
+    });
     res.status(201).json({
       message: "Announcement created successfully",
       announcement: savedAnnouncement,
@@ -88,7 +94,11 @@ export const updateAnnouncement = async (req, res) => {
     if (!announcement) {
       return res.status(404).json({ error: "Announcement not found" });
     }
-
+    broadcast({
+      type: "ANNOUNCEMENT_UPDATED",
+      action: "update",
+      announcement,
+    });
     res.json({
       message: "Announcement updated successfully",
       announcement,
@@ -109,7 +119,11 @@ export const deleteAnnouncement = async (req, res) => {
     if (!announcement) {
       return res.status(404).json({ error: "Announcement not found" });
     }
-
+    broadcast({
+      type: "ANNOUNCEMENT_UPDATED",
+      action: "delete",
+      announcement,
+    });
     res.json({ message: "Announcement deleted successfully" });
   } catch (error) {
     if (error.kind === "ObjectId") {
@@ -137,7 +151,11 @@ export const updateAnnouncementStatus = async (req, res) => {
     if (!announcement) {
       return res.status(404).json({ error: "Announcement not found" });
     }
-
+    broadcast({
+      type: "ANNOUNCEMENT_UPDATED",
+      action: "update",
+      announcement,
+    });
     res.json({
       message: "Announcement status updated successfully",
       announcement,
@@ -185,6 +203,10 @@ export const deleteManyAnnouncements = async (req, res) => {
 
     const result = await Announcement.deleteMany({ _id: { $in: ids } });
 
+    broadcast({
+      type: "ANNOUNCEMENT_UPDATED",
+      action: "delete",
+    });
     return res.json({
       message: `${result.deletedCount} announcements deleted successfully`,
     });

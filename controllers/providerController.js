@@ -1,4 +1,5 @@
 import Provider from "../models/Provider.js";
+import { broadcast } from "../wsServer.js";
 
 // Create a new provider
 export const createProvider = async (req, res) => {
@@ -37,7 +38,11 @@ export const createProvider = async (req, res) => {
     });
 
     const savedProvider = await provider.save();
-
+    broadcast({
+      type: "PROVIDER_UPDATED",
+      action: "create",
+      savedProvider,
+    });
     res.status(201).json({
       message: "Provider created successfully",
       provider: savedProvider,
@@ -101,7 +106,11 @@ export const updateProvider = async (req, res) => {
     if (!provider) {
       return res.status(404).json({ error: "Provider not found" });
     }
-
+    broadcast({
+      type: "PROVIDER_UPDATED",
+      action: "update",
+      provider,
+    });
     res.json({
       message: "Provider updated successfully",
       provider,
@@ -122,7 +131,11 @@ export const deleteProvider = async (req, res) => {
     if (!provider) {
       return res.status(404).json({ error: "Provider not found" });
     }
-
+    broadcast({
+      type: "PROVIDER_UPDATED",
+      action: "delete",
+      provider,
+    });
     res.json({ message: "Provider deleted successfully" });
   } catch (error) {
     if (error.kind === "ObjectId") {
@@ -142,7 +155,11 @@ export const deleteManyProviders = async (req, res) => {
     }
 
     const result = await Provider.deleteMany({ _id: { $in: ids } });
-
+    broadcast({
+      type: "PROVIDER_UPDATED",
+      action: "delete",
+      result,
+    });
     res.json({
       message: `${result.deletedCount} providers deleted successfully`,
     });
@@ -170,7 +187,11 @@ export const updateProviderVisibility = async (req, res) => {
     if (!provider) {
       return res.status(404).json({ error: "Provider not found" });
     }
-
+    broadcast({
+      type: "PROVIDER_UPDATED",
+      action: "update",
+      provider,
+    });
     res.json({
       message: "Provider visibility updated successfully",
       provider,

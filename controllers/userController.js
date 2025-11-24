@@ -1,5 +1,6 @@
 import User from "../models/User.js";
 import { generateToken } from "../utils/jwt.js";
+import { broadcast } from "../wsServer.js";
 
 // CREATE USER
 export const createUser = async (req, res) => {
@@ -16,7 +17,11 @@ export const createUser = async (req, res) => {
     }
 
     const user = await User.create({ username, password, roles });
-
+    broadcast({
+      type: "USER_UPDATED",
+      action: "create",
+      user,
+    });
     res.status(201).json({
       message: "User created successfully",
       user: {
@@ -80,7 +85,11 @@ export const deleteUser = async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
     if (!user) return res.status(404).json({ message: "User not found" });
-
+    broadcast({
+      type: "USER_UPDATED",
+      action: "delete",
+      user,
+    });
     res.json({ message: "User deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -101,7 +110,11 @@ export const deleteManyUsers = async (req, res) => {
     // ids = ids.filter(id => !protectedIds.includes(id));
 
     const result = await User.deleteMany({ _id: { $in: ids } });
-
+    broadcast({
+      type: "USER_UPDATED",
+      action: "delete",
+      result,
+    });
     return res.json({
       message: `${result.deletedCount} users deleted successfully`,
     });

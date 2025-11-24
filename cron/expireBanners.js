@@ -1,6 +1,7 @@
 // cron/expireBanners.js
 import cron from "node-cron";
 import Banner from "../models/Banner.js";
+import { broadcast } from "../wsServer.js";
 
 export const expireBannersJob = () => {
   // Runs every day at midnight
@@ -16,6 +17,10 @@ export const expireBannersJob = () => {
         { status: "Expired" }
       );
 
+      broadcast({
+        type: "BANNER_UPDATED",
+        action: "expired",
+      });
       console.log(`Expired banners updated: ${result.modifiedCount}`);
     } catch (err) {
       console.error("Error auto-expiring banners:", err);
