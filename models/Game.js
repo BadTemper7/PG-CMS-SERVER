@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const gameSchema = new mongoose.Schema(
   {
     gameId: {
-      type: Number,
+      type: String,
       required: true,
       unique: true,
     },
@@ -26,6 +26,10 @@ const gameSchema = new mongoose.Schema(
     gameTab: {
       type: String,
       default: "",
+    },
+    gameProvider: {
+      type: String,
+      required: true,
     },
   },
   { timestamps: true }
