@@ -250,7 +250,11 @@ export const updateProviderOrder = async (req, res) => {
 
     // Update order for each provider based on index
     const updates = orderedIds.map((id, index) => {
-      return Provider.findByIdAndUpdate(id, { order: index }, { new: true });
+      return Provider.findByIdAndUpdate(
+        id,
+        { order: index + 1 },
+        { new: true }
+      );
     });
 
     await Promise.all(updates);
