@@ -63,8 +63,8 @@ export const getProviders = async (req, res) => {
     if (topGame !== undefined) filter.topGame = topGame === "true";
 
     const providers = await Provider.find(filter).sort({
-      order: 1,
-      createdAt: -1,
+      order: 1, // primary sorting
+      createdAt: 1, // secondary fallback sorting
     });
 
     res.json(providers);
@@ -248,21 +248,27 @@ export const updateProviderOrder = async (req, res) => {
       return res.status(400).json({ error: "orderedIds must be an array" });
     }
 
-    // Update order for each provider based on index
-    const updates = orderedIds.map((id, index) => {
-      return Provider.findByIdAndUpdate(id, { order: index }, { new: true });
-    });
+    // Update each provider with the new order
+    const updates = orderedIds.map((id, index) =>
+      Provider.findByIdAndUpdate(id, { order: index }, { new: true })
+    );
 
     await Promise.all(updates);
+
+    // Fetch updated sorted list
+    const sortedProviders = await Provider.find().sort({ order: 1 });
 
     // Broadcast real-time update
     broadcast({
       type: "PROVIDER_UPDATED",
       action: "reorder",
-      orderedIds,
+      providers: sortedProviders,
     });
 
-    res.json({ message: "Providers reordered successfully" });
+    res.json({
+      message: "Providers reordered successfully",
+      providers: sortedProviders, // << RETURN SORTED LIST
+    });
   } catch (error) {
     console.error("Reorder providers error:", error);
     res.status(500).json({ error: "Failed to reorder providers" });
