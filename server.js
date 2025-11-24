@@ -12,6 +12,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
 import providerRoutes from "./routes/providerRoutes.js";
+import gameRoutes from "./routes/gameRoutes.js";
 
 import http from "http";
 import { createWebSocketServer } from "./wsServer.js";
@@ -37,6 +38,7 @@ async function startServer() {
   app.use("/api/users", userRoutes);
   app.use("/api/banners", bannerRoutes);
   app.use("/api/providers", providerRoutes);
+  app.use("/api/games", gameRoutes);
 
   // Create HTTP server manually
   const server = http.createServer(app);
