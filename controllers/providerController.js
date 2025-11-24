@@ -239,3 +239,32 @@ export const bulkCreateProviders = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const updateProviderOrder = async (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+
+    if (!Array.isArray(orderedIds)) {
+      return res.status(400).json({ error: "orderedIds must be an array" });
+    }
+
+    // Update order for each provider based on index
+    const updates = orderedIds.map((id, index) => {
+      return Provider.findByIdAndUpdate(id, { order: index }, { new: true });
+    });
+
+    await Promise.all(updates);
+
+    // Broadcast real-time update
+    broadcast({
+      type: "PROVIDER_UPDATED",
+      action: "reorder",
+      orderedIds,
+    });
+
+    res.json({ message: "Providers reordered successfully" });
+  } catch (error) {
+    console.error("Reorder providers error:", error);
+    res.status(500).json({ error: "Failed to reorder providers" });
+  }
+};

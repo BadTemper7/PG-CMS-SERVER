@@ -8,11 +8,15 @@ import {
   deleteManyProviders,
   updateProviderVisibility,
   bulkCreateProviders,
+  updateProviderOrder, // <-- add this
 } from "../controllers/providerController.js";
 
 const router = express.Router();
 
-// Admin
+// Reorder providers
+router.put("/reorder", updateProviderOrder);
+
+// Admin CRUD
 router.post("/", createProvider);
 router.get("/", getProviders);
 router.get("/:id", getProviderById);
