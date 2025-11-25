@@ -23,6 +23,10 @@ const notificationSchema = new mongoose.Schema(
       enum: ["active", "hide", "expired"],
       default: "active",
     },
+    isViewed: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true, // adds createdAt & updatedAt

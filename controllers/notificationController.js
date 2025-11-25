@@ -135,7 +135,36 @@ export const updateNotification = async (req, res) => {
     res.status(400).json({ error: "Failed to update notification" });
   }
 };
+export const markAsViewed = async (req, res) => {
+  try {
+    const { id } = req.params;
 
+    // Find and update the notification to mark as viewed
+    const updatedNotification = await Notification.findByIdAndUpdate(
+      id,
+      { isViewed: true },
+      { new: true }
+    );
+
+    if (!updatedNotification) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
+
+    broadcast({
+      type: "NOTIFICATION_UPDATED",
+      action: "viewed",
+      updatedNotification,
+    });
+
+    res.status(200).json({
+      message: "Notification marked as viewed successfully",
+      notification: updatedNotification,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: "Failed to mark notification as viewed" });
+  }
+};
 // DELETE NOTIFICATION
 export const deleteNotification = async (req, res) => {
   try {
