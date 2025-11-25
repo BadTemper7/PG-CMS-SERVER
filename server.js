@@ -13,6 +13,7 @@ import userRoutes from "./routes/userRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
 import providerRoutes from "./routes/providerRoutes.js";
 import gameRoutes from "./routes/gameRoutes.js";
+import showGameRoutes from "./routes/showGameRoutes.js";
 
 import http from "http";
 import { createWebSocketServer } from "./wsServer.js";
@@ -39,6 +40,7 @@ async function startServer() {
   app.use("/api/banners", bannerRoutes);
   app.use("/api/providers", providerRoutes);
   app.use("/api/games", gameRoutes);
+  app.use("/api/showGames", showGameRoutes);
 
   // Create HTTP server manually
   const server = http.createServer(app);

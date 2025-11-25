@@ -24,15 +24,25 @@ const gameSchema = new mongoose.Schema(
       required: true,
     },
     gameTab: {
-      type: String,
-      default: "",
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ShowGame", // Ensure the model name is singular
+      required: true,
     },
     gameProvider: {
       type: String,
       required: true,
     },
+    orderTop: {
+      type: Number,
+      required: true,
+    },
+    orderHot: {
+      type: Number,
+      required: true,
+    },
   },
   { timestamps: true }
 );
+
 const Game = mongoose.model("Game", gameSchema);
 export default Game;

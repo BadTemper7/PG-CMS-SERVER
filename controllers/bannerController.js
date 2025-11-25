@@ -62,13 +62,14 @@ export const getAllBanners = async (req, res) => {
 export const updateBanner = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, device, theme, expiry } = req.body;
+    const { status, device, theme, expiry, url } = req.body;
     // Prepare the updated banner data
     const updatedBannerData = {
       status: status || "active", // Default to "active" if no status is provided
       device: device || "desktop", // Default to "desktop" if no deviceMode is provided
       theme: theme || "light", // Default to "light" if no themeMode is provided
       expiry,
+      url,
     };
 
     // Find and update the banner
