@@ -65,7 +65,7 @@ export const createNotification = async (req, res) => {
     });
 
     broadcast({
-      type: "NOTIFICATION_ADDED",
+      type: "NOTIFICATION_UPDATED",
       action: "create",
       newNotification,
     });
@@ -149,13 +149,6 @@ export const markAsViewed = async (req, res) => {
     if (!updatedNotification) {
       return res.status(404).json({ error: "Notification not found" });
     }
-
-    broadcast({
-      type: "NOTIFICATION_UPDATED",
-      action: "viewed",
-      updatedNotification,
-    });
-
     res.status(200).json({
       message: "Notification marked as viewed successfully",
       notification: updatedNotification,
