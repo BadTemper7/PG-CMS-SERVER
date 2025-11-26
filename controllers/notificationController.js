@@ -65,7 +65,7 @@ export const createNotification = async (req, res) => {
     });
 
     broadcast({
-      type: "NOTIFICATION_UPDATED",
+      type: "NOTIFICATION_ADDED",
       action: "create",
       newNotification,
     });
