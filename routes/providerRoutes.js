@@ -9,6 +9,7 @@ import {
   updateProviderVisibility,
   bulkCreateProviders,
   updateProviderOrder, // <-- add this
+  switchProviderOrder,
 } from "../controllers/providerController.js";
 
 const router = express.Router();
@@ -27,5 +28,6 @@ router.delete("/:id", deleteProvider);
 
 // Bulk
 router.post("/bulk-delete", deleteManyProviders);
+router.put("/switch-order", switchProviderOrder);
 
 export default router;

@@ -270,3 +270,59 @@ export const updateProviderOrder = async (req, res) => {
     res.status(500).json({ error: "Failed to reorder providers" });
   }
 };
+// Switch order of two providers
+export const switchProviderOrder = async (req, res) => {
+  try {
+    const { id1, id2 } = req.body;
+
+    // Missing fields
+    if (!id1 || !id2) {
+      return res.status(400).json({ error: "id1 and id2 are required" });
+    }
+
+    // If same ID → do nothing
+    if (id1 === id2) {
+      return res.json({
+        message: "IDs are identical. No switch performed.",
+        updated: false,
+      });
+    }
+
+    // Fetch both providers
+    const p1 = await Provider.findById(id1);
+    const p2 = await Provider.findById(id2);
+
+    if (!p1 || !p2) {
+      return res.status(404).json({ error: "One or both providers not found" });
+    }
+
+    // Swap their order values
+    const order1 = p1.order;
+    const order2 = p2.order;
+
+    await Provider.findByIdAndUpdate(id1, { order: order2 });
+    await Provider.findByIdAndUpdate(id2, { order: order1 });
+
+    // Fetch updated versions
+    const updated1 = await Provider.findById(id1);
+    const updated2 = await Provider.findById(id2);
+
+    broadcast({
+      type: "PROVIDER_UPDATED",
+      action: "order-switch",
+      providers: [updated1, updated2],
+    });
+
+    res.json({
+      message: "Order switched successfully",
+      updated: true,
+      providers: {
+        [id1]: updated1,
+        [id2]: updated2,
+      },
+    });
+  } catch (error) {
+    console.error("Switch order failed:", error);
+    res.status(500).json({ error: "Failed to switch provider order" });
+  }
+};
