@@ -5,7 +5,6 @@ const gameSchema = new mongoose.Schema(
     gameId: {
       type: String,
       required: true,
-      unique: true,
     },
     gameName: {
       type: String,
@@ -39,5 +38,6 @@ const gameSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+gameSchema.index({ gameId: 1, gameTab: 1 }, { unique: true });
 const Game = mongoose.model("Game", gameSchema);
 export default Game;

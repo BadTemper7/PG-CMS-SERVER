@@ -28,6 +28,6 @@ router.delete("/:id", deleteProvider);
 
 // Bulk
 router.post("/bulk-delete", deleteManyProviders);
-router.put("/switch-order", switchProviderOrder);
+router.put("/switch", switchProviderOrder);
 
 export default router;

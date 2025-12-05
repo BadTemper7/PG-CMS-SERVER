@@ -13,12 +13,12 @@ const router = express.Router();
 
 // ORDER MATTERS HERE:
 router.get("/", getNotifications); // GET all
-router.get("/:id", getNotificationById); // GET one by ID
+router.post("/bulk-delete", deleteManyNotifications);
 
 router.post("/", createNotification);
 router.put("/:id", updateNotification);
 router.delete("/:id", deleteNotification);
-router.post("/bulk-delete", deleteManyNotifications);
+router.get("/:id", getNotificationById); // GET one by ID
 router.put("/viewed/:id", markAsViewed);
 
 export default router;

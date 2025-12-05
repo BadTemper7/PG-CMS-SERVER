@@ -97,65 +97,54 @@ export const createTopGames = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-export const updateTopGameOrder = async (req, res) => {
+
+export const updateGameOrder = async (req, res) => {
   try {
-    const { orderedIds, gameTab } = req.body;
+    const { id1, id2 } = req.body;
 
-    // Ensure orderedIds is an array
-    if (!Array.isArray(orderedIds)) {
-      return res.status(400).json({ error: "orderedIds must be an array" });
+    if (!id1 || !id2) {
+      return res.status(400).json({ error: "id1 and id2 are required" });
+    }
+    if (id1 === id2) {
+      return res.json({
+        message: "IDs are identical. No switch performed.",
+        updated: false,
+      });
     }
 
-    // Ensure gameTab is provided and is a valid ObjectId
-    if (!gameTab) {
-      return res.status(400).json({ error: "gameTab is required" });
+    const g1 = await Game.findById(id1);
+    const g2 = await Game.findById(id2);
+    if (!g1 || !g2) {
+      return res.status(404).json({ error: "One or both games not found" });
     }
 
-    // Validate if gameTab exists in the ShowGame collection
-    const showGame = await ShowGame.findById(gameTab);
-    if (!showGame) {
-      return res.status(400).json({ error: "Invalid gameTab ID" });
-    }
+    const order1 = g1.order;
+    const order2 = g2.order;
 
-    // Check if gameTab is "top" to apply special ordering logic
-    if (showGame.gameTab !== "top") {
-      return res
-        .status(400)
-        .json({ error: "Only 'top' gameTab is allowed for reordering" });
-    }
+    await Game.findByIdAndUpdate(id1, { order: order2 });
+    await Game.findByIdAndUpdate(id2, { order: order1 });
 
-    // Update the order of games based on the provided orderedIds
-    const updatePromises = orderedIds.map((id, index) => {
-      return Game.findOneAndUpdate(
-        { _id: id, gameTab: gameTab }, // Ensure we are updating the correct gameTab
-        { order: index + 1 }, // Set the order to start from 1
-        { new: true } // Return the updated document
-      );
-    });
+    // ✅ populate so response shape matches GET /games
+    const updated1 = await Game.findById(id1).populate("gameTab");
+    const updated2 = await Game.findById(id2).populate("gameTab");
 
-    // Wait for all updates to complete
-    await Promise.all(updatePromises);
-
-    // Fetch sorted games in the given gameTab
-    const sortedGames = await Game.find({ gameTab })
-      .sort({ order: 1 }) // Sort by order
-      .populate("gameTab"); // Optionally populate if you need additional details
-
-    // Broadcast the updated game order (you can add real-time broadcasting here)
     broadcast({
       type: "GAME_UPDATED",
-      action: "update",
-      sortedGames,
+      action: "order-switch",
+      games: [updated1, updated2],
     });
 
-    // Respond with the sorted games
-    res.json({
-      message: "Games reordered successfully",
-      games: sortedGames,
+    return res.json({
+      message: "Order switched successfully",
+      updated: true,
+      games: {
+        [id1]: updated1,
+        [id2]: updated2,
+      },
     });
   } catch (error) {
-    console.error("Error reordering games:", error);
-    res.status(500).json({ error: "Failed to reorder games" });
+    console.error("Switch order failed:", error);
+    return res.status(500).json({ error: "Failed to switch game order" });
   }
 };
 
@@ -186,7 +175,7 @@ export const createGame = async (req, res) => {
     }
 
     // Prevent duplicate gameId
-    const exists = await Game.findOne({ gameId });
+    const exists = await Game.findOne({ gameId, gameTab });
     if (exists) {
       return res.status(400).json({ error: "gameId already exists" });
     }
@@ -235,14 +224,13 @@ export const createGame = async (req, res) => {
 export const getGames = async (req, res) => {
   try {
     const { category, tab, provider, order } = req.query;
-
+    console.log(provider);
     const filter = {};
 
     if (category) filter.gameCategory = Number(category);
     if (tab) filter.gameTab = tab;
     if (provider) filter.gameProvider = provider;
     if (order) filter.order = order; // Filter by game order (e.g., top or hot)
-
     const games = await Game.find(filter)
       .populate("gameTab") // Populate the ShowGame reference
       .sort({ order: 1 }); // Sort games by order field for priority
