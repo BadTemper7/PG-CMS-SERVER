@@ -1,28 +1,26 @@
+// wsServer.js
 import { WebSocketServer } from "ws";
 
 let wss = null;
 
 /**
  * Map deviceKey -> Set<WebSocket>
- * deviceKey will be your device code (Device.deviceId) OR mongo id (string)
+ * deviceKey can be deviceCode (e.g. OUTLET-A) or deviceMongoId (string)
  */
 const clientsByDeviceKey = new Map();
 
 function addClientToKey(deviceKey, ws) {
   if (!deviceKey) return;
 
-  if (!clientsByDeviceKey.has(deviceKey)) {
-    clientsByDeviceKey.set(deviceKey, new Set());
-  }
-
-  clientsByDeviceKey.get(deviceKey).add(ws);
+  const key = String(deviceKey);
+  if (!clientsByDeviceKey.has(key)) clientsByDeviceKey.set(key, new Set());
+  clientsByDeviceKey.get(key).add(ws);
 
   ws.on("close", () => {
-    const set = clientsByDeviceKey.get(deviceKey);
+    const set = clientsByDeviceKey.get(key);
     if (!set) return;
-
     set.delete(ws);
-    if (set.size === 0) clientsByDeviceKey.delete(deviceKey);
+    if (set.size === 0) clientsByDeviceKey.delete(key);
   });
 }
 
@@ -30,16 +28,19 @@ export function createWebSocketServer(server) {
   wss = new WebSocketServer({ server });
 
   wss.on("connection", (ws, req) => {
-    // Allow device to pass identity via query:
-    // ws://host:port/?deviceCode=OUTLET-A
-    // ws://host:port/?deviceMongoId=64fa...
     const url = new URL(req.url, "http://localhost");
-    const deviceCode = url.searchParams.get("deviceCode");
-    const deviceMongoId = url.searchParams.get("deviceMongoId");
+
+    const deviceCode = url.searchParams.get("deviceCode"); // OUTLET-A
+    const deviceMongoId = url.searchParams.get("deviceMongoId"); // 64fa...
+    const token = url.searchParams.get("token"); // optional (you can validate if you want)
 
     const deviceKey = deviceCode || deviceMongoId || null;
 
-    console.log("WS client connected", { deviceCode, deviceMongoId });
+    console.log("[WS] client connected", {
+      deviceCode,
+      deviceMongoId,
+      tokenPresent: !!token,
+    });
 
     if (deviceKey) addClientToKey(deviceKey, ws);
 
@@ -53,7 +54,7 @@ export function createWebSocketServer(server) {
   });
 }
 
-/** Broadcast to ALL clients (useful for admin dashboards) */
+/** Broadcast to ALL connected clients */
 export function broadcast(data) {
   if (!wss) return;
 
@@ -64,21 +65,18 @@ export function broadcast(data) {
   });
 }
 
-/** ✅ Send only to a specific device key (deviceCode OR deviceMongoId) */
+/** Send only to one device (deviceCode OR deviceMongoId) */
 export function sendToDevice(deviceKey, data) {
-  if (!deviceKey) return;
-
   const set = clientsByDeviceKey.get(String(deviceKey));
   if (!set) return;
 
   const json = JSON.stringify(data);
-
   for (const ws of set) {
     if (ws.readyState === 1) ws.send(json);
   }
 }
 
-/** ✅ Optional helper: send to both code + mongo id if you have both */
+/** Convenience: send to BOTH keys if you have both */
 export function sendToDeviceBoth({ deviceCode, deviceMongoId }, data) {
   if (deviceCode) sendToDevice(deviceCode, data);
   if (deviceMongoId) sendToDevice(String(deviceMongoId), data);
