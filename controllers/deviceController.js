@@ -1,7 +1,6 @@
 import Device from "../models/Device.js";
-import Assignment from "../models/Assignment.js";
-import Playlist from "../models/Playlist.js";
 import Media from "../models/Media.js";
+import DeviceMedia from "../models/DeviceMedia.js";
 import { broadcast } from "../wsServer.js";
 import { generateToken, hashToken } from "../utils/deviceToken.js";
 
@@ -18,29 +17,41 @@ export const registerDevice = async (req, res) => {
 
     const device = await Device.findOneAndUpdate(
       { deviceId },
-      { deviceId, name, location, tokenHash, lastSeenAt: new Date() },
+      {
+        deviceId,
+        name,
+        location,
+        tokenHash,
+        lastSeenAt: new Date(),
+        lastState: "idle",
+      },
       { upsert: true, new: true, runValidators: true }
     );
 
     broadcast({ type: "DEVICE_UPDATED", action: "register", deviceId });
 
-    // return token ONCE (player stores it)
+    // return token ONCE
     res.status(201).json({ deviceId: device.deviceId, token });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 };
 
-// very simple auth: device must send x-device-token
+// auth: device must send x-device-token
 const assertDeviceAuth = async (req) => {
   const token = req.headers["x-device-token"];
   if (!token) throw new Error("Missing x-device-token");
-  const tokenHash = hashToken(token);
+
+  const hashed = hashToken(token);
 
   const device = await Device.findOne({
     deviceId: req.params.deviceId,
-    tokenHash,
+    $or: [
+      { tokenHash: hashed }, // normal (DB stores hash)
+      { tokenHash: token }, // fallback (if DB accidentally stores raw, or client sends hash)
+    ],
   });
+
   if (!device) throw new Error("Invalid device token");
   return device;
 };
@@ -49,7 +60,6 @@ export const heartbeat = async (req, res) => {
   try {
     const device = await assertDeviceAuth(req);
     device.lastSeenAt = new Date();
-    // keep lastState as-is
     await device.save();
 
     broadcast({
@@ -70,19 +80,26 @@ export const updatePlaybackStatus = async (req, res) => {
     const { state, currentMediaId, currentMediaName } = req.body;
 
     device.lastSeenAt = new Date();
-    if (state) device.lastState = state;
+
+    if (state) {
+      if (!["idle", "playing"].includes(state)) {
+        return res.status(400).json({ error: "Invalid state" });
+      }
+      device.lastState = state;
+    }
+
     if (currentMediaId) device.currentMediaId = currentMediaId;
     if (currentMediaName) device.currentMediaName = currentMediaName;
-    if (state === "playing") {
-      device.lastPlaybackAt = new Date();
-    }
+
+    if (device.lastState === "playing") device.lastPlaybackAt = new Date();
+
     await device.save();
 
     broadcast({
       type: "DEVICE_STATUS",
       deviceId: device.deviceId,
       state: device.lastState,
-      currentMediaName,
+      currentMediaName: device.currentMediaName || null,
     });
 
     res.json({ ok: true });
@@ -91,58 +108,59 @@ export const updatePlaybackStatus = async (req, res) => {
   }
 };
 
+// Player pulls its media list (assigned to THIS device)
 export const getDeviceConfig = async (req, res) => {
   try {
     const device = await assertDeviceAuth(req);
 
-    // assignment
-    const assignment = await Assignment.findOne({ deviceId: device.deviceId });
-    let playlist = null;
+    // get assigned media for device (active per-device)
+    const assignments = await DeviceMedia.find({
+      deviceId: device._id,
+      active: true,
+    })
+      .sort({ order: 1, createdAt: 1 })
+      .lean();
 
-    if (assignment) {
-      playlist = await Playlist.findById(assignment.playlistId).lean();
-    }
+    const mediaIds = assignments.map((a) => a.mediaId);
 
-    // populate media URLs
-    let items = [];
-    if (playlist?.items?.length) {
-      const mediaIds = playlist.items.map((x) => x.mediaId);
-      const medias = await Media.find({
-        _id: { $in: mediaIds },
-        active: true,
-      }).lean();
+    // only return media that is globally active too
+    const medias = await Media.find({
+      _id: { $in: mediaIds },
+      active: true,
+    }).lean();
 
-      const mediaMap = new Map(medias.map((m) => [String(m._id), m]));
-      items = playlist.items
-        .sort((a, b) => a.order - b.order)
-        .map((it) => {
-          const m = mediaMap.get(String(it.mediaId));
-          return m
-            ? {
-                mediaId: m._id,
-                url: m.url,
-                checksum: m.checksum,
-                originalName: m.originalName,
-              }
-            : null;
-        })
-        .filter(Boolean);
-    }
+    const mediaMap = new Map(medias.map((m) => [String(m._id), m]));
 
-    // default fallback
+    const items = assignments
+      .map((a) => {
+        const m = mediaMap.get(String(a.mediaId));
+        if (!m) return null;
+        return {
+          mediaId: m._id,
+          url: m.url,
+          checksum: m.checksum,
+          originalName: m.originalName,
+          order: a.order,
+        };
+      })
+      .filter(Boolean);
+
+    // fallback default
     let defaultMedia = null;
-    if (device.defaultMediaId)
+    if (device.defaultMediaId) {
       defaultMedia = await Media.findById(device.defaultMediaId).lean();
+      if (defaultMedia && defaultMedia.active === false) defaultMedia = null;
+    }
 
     res.json({
       deviceId: device.deviceId,
-      assignmentVersion: assignment?.version || 0,
-      playlistItems: items,
+      items,
       defaultVideo: defaultMedia
         ? {
             mediaId: defaultMedia._id,
             url: defaultMedia.url,
             checksum: defaultMedia.checksum,
+            originalName: defaultMedia.originalName,
           }
         : null,
       offlineSeconds: OFFLINE_SECONDS,
@@ -152,7 +170,7 @@ export const getDeviceConfig = async (req, res) => {
   }
 };
 
-// Admin view
+// Admin: list devices with computed status
 export const listDevices = async (req, res) => {
   const devices = await Device.find().sort({ updatedAt: -1 }).lean();
   const now = Date.now();
@@ -160,11 +178,11 @@ export const listDevices = async (req, res) => {
   const withStatus = devices.map((d) => {
     const last = d.lastSeenAt ? new Date(d.lastSeenAt).getTime() : 0;
     const offline = !last || (now - last) / 1000 > OFFLINE_SECONDS;
-    const status = offline
-      ? "offline"
-      : d.lastState === "playing"
-      ? "playing"
-      : "active";
+
+    let status = "offline";
+    if (!offline)
+      status = d.lastState === "playing" ? "running/playing" : "online-idle";
+
     return { ...d, status };
   });
 

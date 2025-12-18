@@ -18,6 +18,7 @@ import mediaRoutes from "./routes/mediaRoutes.js";
 import playlistRoutes from "./routes/playlistRoutes.js";
 import deviceRoutes from "./routes/deviceRoutes.js";
 import assignmentRoutes from "./routes/assignmentRoutes.js";
+import deviceMediaRoutes from "./routes/deviceMediaRoutes.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -55,6 +56,7 @@ async function startServer() {
   app.use("/api/media", mediaRoutes);
   app.use("/api/playlists", playlistRoutes);
   app.use("/api/devices", deviceRoutes);
+  app.use("/api/deviceMedia", deviceMediaRoutes);
   app.use("/api/assignments", assignmentRoutes);
 
   // Create HTTP server manually
