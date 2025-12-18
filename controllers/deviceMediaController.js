@@ -395,7 +395,157 @@ export const bulkUpdateDeviceMediaForTargets = async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 };
+export const syncMediaTargets = async (req, res) => {
+  try {
+    const { mediaId } = req.params;
+    const { targets = [] } = req.body;
 
+    if (!mediaId) return res.status(400).json({ error: "mediaId is required" });
+    if (!mongoose.Types.ObjectId.isValid(mediaId)) {
+      return res
+        .status(400)
+        .json({ error: "mediaId must be a valid ObjectId" });
+    }
+
+    if (!Array.isArray(targets)) {
+      return res.status(400).json({ error: "targets must be an array" });
+    }
+
+    // ensure media exists
+    const media = await Media.findById(mediaId).lean();
+    if (!media) return res.status(404).json({ error: "Media not found" });
+
+    // patch fields (optional but usually provided)
+    const patch = {};
+    if ("active" in req.body) patch.active = !!req.body.active;
+    if ("order" in req.body) patch.order = Number(req.body.order) || 0;
+
+    // normalize + validate target device ids
+    const rawTargetIds = targets.map((t) => t?.deviceId).filter(Boolean);
+
+    const invalidIds = rawTargetIds.filter(
+      (id) => !mongoose.Types.ObjectId.isValid(id)
+    );
+    if (invalidIds.length) {
+      return res.status(400).json({
+        error: "Some deviceId values are not valid ObjectIds",
+        invalidDeviceIds: invalidIds,
+      });
+    }
+
+    // unique target mongo ids
+    const targetDeviceMongoIds = [...new Set(rawTargetIds.map(String))];
+
+    // load device docs so we can send deviceCode in WS
+    const devices = await Device.find({ _id: { $in: targetDeviceMongoIds } })
+      .select("_id deviceId")
+      .lean();
+    const deviceMap = new Map(devices.map((d) => [String(d._id), d]));
+
+    // any missing device docs => reject
+    const missingDevices = targetDeviceMongoIds.filter(
+      (id) => !deviceMap.has(id)
+    );
+    if (missingDevices.length) {
+      return res.status(404).json({
+        error: "Some target devices not found",
+        missingDeviceIds: missingDevices,
+      });
+    }
+
+    // 1) Find all existing assignments for this media
+    const existing = await DeviceMedia.find({ mediaId }).lean();
+    const existingDeviceSet = new Set(existing.map((r) => String(r.deviceId)));
+    const targetSet = new Set(targetDeviceMongoIds);
+
+    // 2) Determine removals (in existing but not in target)
+    const toRemoveDeviceIds = [...existingDeviceSet].filter(
+      (d) => !targetSet.has(d)
+    );
+
+    // 3) Apply upserts for targets
+    const upserted = [];
+    for (const deviceMongoId of targetDeviceMongoIds) {
+      const device = deviceMap.get(deviceMongoId);
+
+      const row = await DeviceMedia.findOneAndUpdate(
+        { deviceId: deviceMongoId, mediaId },
+        {
+          deviceId: deviceMongoId,
+          mediaId,
+          ...patch, // active/order if provided
+        },
+        { upsert: true, new: true, runValidators: true }
+      ).lean();
+
+      upserted.push(row);
+
+      const payload = {
+        type: "DEVICE_MEDIA_UPDATED",
+        action: "sync_upsert",
+        deviceCode: String(device.deviceId),
+        deviceMongoId: String(deviceMongoId),
+        mediaId: String(mediaId),
+        ...(row?.active !== undefined ? { active: row.active } : {}),
+        ...(row?.order !== undefined ? { order: row.order } : {}),
+      };
+
+      sendToDeviceBoth({ deviceCode: device.deviceId, deviceMongoId }, payload);
+      broadcast(payload);
+    }
+
+    // 4) Remove assignments not in targets
+    const removed = [];
+    if (toRemoveDeviceIds.length) {
+      // load device codes for removed devices (for WS)
+      const removedDevices = await Device.find({
+        _id: { $in: toRemoveDeviceIds },
+      })
+        .select("_id deviceId")
+        .lean();
+      const removedDeviceMap = new Map(
+        removedDevices.map((d) => [String(d._id), d])
+      );
+
+      // delete rows
+      const del = await DeviceMedia.deleteMany({
+        mediaId,
+        deviceId: { $in: toRemoveDeviceIds },
+      });
+
+      // record removed list (best effort)
+      for (const deviceMongoId of toRemoveDeviceIds) {
+        removed.push({ deviceId: deviceMongoId });
+        const d = removedDeviceMap.get(deviceMongoId);
+
+        const payload = {
+          type: "DEVICE_MEDIA_UPDATED",
+          action: "sync_remove",
+          deviceCode: d?.deviceId ? String(d.deviceId) : null,
+          deviceMongoId: String(deviceMongoId),
+          mediaId: String(mediaId),
+        };
+
+        sendToDeviceBoth({ deviceCode: d?.deviceId, deviceMongoId }, payload);
+        broadcast(payload);
+      }
+
+      console.log("[syncMediaTargets] removedCount:", del.deletedCount);
+    }
+
+    res.json({
+      message: "Synced media targets",
+      mediaId: String(mediaId),
+      patch,
+      targetCount: targetDeviceMongoIds.length,
+      removedCount: toRemoveDeviceIds.length,
+      upserted,
+      removed,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
 // Remove media from device
 export const removeDeviceMedia = async (req, res) => {
   try {
