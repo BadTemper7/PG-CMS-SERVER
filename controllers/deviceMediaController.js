@@ -2,9 +2,8 @@ import Device from "../models/Device.js";
 import Media from "../models/Media.js";
 import DeviceMedia from "../models/DeviceMedia.js";
 import mongoose from "mongoose";
-import { broadcast } from "../wsServer.js";
+import { sendToDeviceBoth, broadcast } from "../wsServer.js";
 
-// Assign media to device (or update if exists)
 export const upsertDeviceMedia = async (req, res) => {
   try {
     const { deviceId, mediaId, active = true, order = 0 } = req.body;
@@ -14,32 +13,50 @@ export const upsertDeviceMedia = async (req, res) => {
         .json({ error: "deviceId and mediaId are required" });
     }
 
+    // deviceId from body is device code like OUTLET-A
     const device = await Device.findOne({ deviceId }).lean();
     if (!device) return res.status(404).json({ error: "Device not found" });
 
     const media = await Media.findById(mediaId).lean();
     if (!media) return res.status(404).json({ error: "Media not found" });
 
+    const deviceMongoId = String(device._id);
+    const deviceCode = device.deviceId;
+
+    // ✅ store mongo id in DeviceMedia.deviceId (because you populate deviceId later)
     const row = await DeviceMedia.findOneAndUpdate(
-      { deviceId, mediaId },
-      { deviceId, mediaId, active: !!active, order: Number(order) || 0 },
+      { deviceId: deviceMongoId, mediaId },
+      {
+        deviceId: deviceMongoId,
+        mediaId,
+        active: !!active,
+        order: Number(order) || 0,
+      },
       { upsert: true, new: true, runValidators: true }
     ).lean();
 
-    broadcast({
+    const payload = {
       type: "DEVICE_MEDIA_UPDATED",
       action: "upsert",
-      deviceId,
-      mediaId,
+      deviceCode,
+      deviceMongoId,
+      mediaId: String(mediaId),
       active: row.active,
       order: row.order,
-    });
+    };
+
+    // ✅ send only to this device (player)
+    sendToDeviceBoth({ deviceCode, deviceMongoId }, payload);
+
+    // optional: also broadcast to admin dashboards
+    broadcast(payload);
 
     res.json({ message: "Assigned/Updated", deviceMedia: row });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 };
+
 export const listAllDeviceMedia = async (req, res) => {
   try {
     // optional filters:
@@ -133,7 +150,6 @@ export const bulkAssignMediaToDevices = async (req, res) => {
   try {
     const { mediaId, targets = [], order = 0, active = true } = req.body;
 
-    // validate mediaId
     if (!mediaId) return res.status(400).json({ error: "mediaId is required" });
     if (!mongoose.Types.ObjectId.isValid(mediaId)) {
       return res
@@ -141,18 +157,15 @@ export const bulkAssignMediaToDevices = async (req, res) => {
         .json({ error: "mediaId must be a valid ObjectId" });
     }
 
-    // validate targets
     if (!Array.isArray(targets) || targets.length === 0) {
       return res
         .status(400)
         .json({ error: "targets must be a non-empty array" });
     }
 
-    // ensure media exists
     const media = await Media.findById(mediaId).lean();
     if (!media) return res.status(404).json({ error: "Media not found" });
 
-    // normalize + validate device ids
     const rawDeviceIds = targets.map((t) => t?.deviceId).filter(Boolean);
 
     const invalidIds = rawDeviceIds.filter(
@@ -165,53 +178,56 @@ export const bulkAssignMediaToDevices = async (req, res) => {
       });
     }
 
-    const deviceIds = [...new Set(rawDeviceIds.map(String))];
+    const deviceMongoIds = [...new Set(rawDeviceIds.map(String))];
 
-    // find which devices exist
-    const devices = await Device.find({ _id: { $in: deviceIds } })
+    const devices = await Device.find({ _id: { $in: deviceMongoIds } })
       .select("_id deviceId name location")
       .lean();
 
-    const deviceSet = new Set(devices.map((d) => String(d._id)));
+    const deviceMap = new Map(devices.map((d) => [String(d._id), d]));
 
     const assigned = [];
     const rejected = [];
 
     for (const t of targets) {
-      const deviceId = t?.deviceId ? String(t.deviceId) : null;
+      const deviceMongoId = t?.deviceId ? String(t.deviceId) : null;
 
-      if (!deviceId) {
+      if (!deviceMongoId) {
         rejected.push({ deviceId: null, reason: "Missing deviceId" });
         continue;
       }
 
-      if (!deviceSet.has(deviceId)) {
-        rejected.push({ deviceId, reason: "Device not found" });
+      const device = deviceMap.get(deviceMongoId);
+      if (!device) {
+        rejected.push({ deviceId: deviceMongoId, reason: "Device not found" });
         continue;
       }
 
-      // upsert assignment
       const row = await DeviceMedia.findOneAndUpdate(
-        { deviceId, mediaId },
+        { deviceId: deviceMongoId, mediaId },
         {
-          deviceId,
+          deviceId: deviceMongoId,
           mediaId,
-          active: !!active, // global active
-          order: Number(order) || 0, // global order
+          active: !!active,
+          order: Number(order) || 0,
         },
         { upsert: true, new: true, runValidators: true }
       ).lean();
 
       assigned.push(row);
 
-      broadcast({
+      const payload = {
         type: "DEVICE_MEDIA_UPDATED",
         action: "bulk_upsert",
-        deviceId,
-        mediaId,
+        deviceCode: device.deviceId,
+        deviceMongoId,
+        mediaId: String(mediaId),
         active: row.active,
         order: row.order,
-      });
+      };
+
+      sendToDeviceBoth({ deviceCode: device.deviceId, deviceMongoId }, payload);
+      broadcast(payload);
     }
 
     res.json({
@@ -225,10 +241,11 @@ export const bulkAssignMediaToDevices = async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 };
+
 // Update per-device active/order
 export const updateDeviceMedia = async (req, res) => {
   try {
-    const { deviceId, mediaId } = req.params;
+    const { deviceId, mediaId } = req.params; // deviceId here = mongo id string
     const patch = {};
 
     if ("active" in req.body) patch.active = !!req.body.active;
@@ -242,14 +259,24 @@ export const updateDeviceMedia = async (req, res) => {
 
     if (!row) return res.status(404).json({ error: "Assignment not found" });
 
-    broadcast({
+    const device = await Device.findById(deviceId)
+      .select("_id deviceId")
+      .lean();
+    const deviceCode = device?.deviceId || null;
+    const deviceMongoId = String(deviceId);
+
+    const payload = {
       type: "DEVICE_MEDIA_UPDATED",
       action: "update",
-      deviceId,
-      mediaId,
+      deviceCode,
+      deviceMongoId,
+      mediaId: String(mediaId),
       active: row.active,
       order: row.order,
-    });
+    };
+
+    sendToDeviceBoth({ deviceCode, deviceMongoId }, payload);
+    broadcast(payload);
 
     res.json({ message: "Updated", deviceMedia: row });
   } catch (e) {
@@ -257,10 +284,9 @@ export const updateDeviceMedia = async (req, res) => {
   }
 };
 
-// Remove media from device
 export const removeDeviceMedia = async (req, res) => {
   try {
-    const { deviceId, mediaId } = req.params;
+    const { deviceId, mediaId } = req.params; // deviceId = mongo id string
 
     const deleted = await DeviceMedia.findOneAndDelete({
       deviceId,
@@ -269,12 +295,23 @@ export const removeDeviceMedia = async (req, res) => {
     if (!deleted)
       return res.status(404).json({ error: "Assignment not found" });
 
-    broadcast({
+    const device = await Device.findById(deviceId)
+      .select("_id deviceId")
+      .lean();
+    const deviceCode = device?.deviceId || null;
+    const deviceMongoId = String(deviceId);
+
+    const payload = {
       type: "DEVICE_MEDIA_UPDATED",
       action: "remove",
-      deviceId,
-      mediaId,
-    });
+      deviceCode,
+      deviceMongoId,
+      mediaId: String(mediaId),
+    };
+
+    sendToDeviceBoth({ deviceCode, deviceMongoId }, payload);
+    broadcast(payload);
+
     res.json({ message: "Removed" });
   } catch (e) {
     res.status(500).json({ error: e.message });
