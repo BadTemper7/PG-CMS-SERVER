@@ -14,6 +14,13 @@ import bannerRoutes from "./routes/bannerRoutes.js";
 import providerRoutes from "./routes/providerRoutes.js";
 import gameRoutes from "./routes/gameRoutes.js";
 import showGameRoutes from "./routes/showGameRoutes.js";
+import mediaRoutes from "./routes/mediaRoutes.js";
+import playlistRoutes from "./routes/playlistRoutes.js";
+import deviceRoutes from "./routes/deviceRoutes.js";
+import assignmentRoutes from "./routes/assignmentRoutes.js";
+
+import path from "path";
+import { fileURLToPath } from "url";
 
 import http from "http";
 import { createWebSocketServer } from "./wsServer.js";
@@ -33,6 +40,10 @@ async function startServer() {
   expireBannersJob();
   expireAnnouncementsJob();
 
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+
+  app.use("/uploads", express.static(path.join(__dirname, "uploads")));
   // routes
   app.use("/api/announcements", announcementRoutes);
   app.use("/api/notifications", notificationRoutes);
@@ -41,6 +52,10 @@ async function startServer() {
   app.use("/api/providers", providerRoutes);
   app.use("/api/games", gameRoutes);
   app.use("/api/showGames", showGameRoutes);
+  app.use("/api/media", mediaRoutes);
+  app.use("/api/playlists", playlistRoutes);
+  app.use("/api/devices", deviceRoutes);
+  app.use("/api/assignments", assignmentRoutes);
 
   // Create HTTP server manually
   const server = http.createServer(app);

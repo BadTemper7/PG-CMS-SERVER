@@ -35,6 +35,11 @@ const gameSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    updatedBy: {
+      type: String,
+      enum: ["user", "system"],
+      default: "user",
+    }
   },
   { timestamps: true }
 );

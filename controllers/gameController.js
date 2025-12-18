@@ -6,145 +6,245 @@ import { broadcast } from "../wsServer.js";
 // CREATE GAME
 //
 
-export const createTopGames = async (req, res) => {
-  try {
-    const gamesData = req.body; // Expecting an array of games in the request body
+import mongoose from "mongoose";
 
-    // Validate that the request body is an array of games
+export const syncTopGames = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const gamesData = req.body;
+
     if (!Array.isArray(gamesData) || gamesData.length === 0) {
-      return res.status(400).json({
-        error: "Request must contain an array of games",
-      });
+      await session.abortTransaction();
+      session.endSession();
+      return res
+        .status(400)
+        .json({ error: "Request must contain an array of games" });
     }
 
-    // Loop through each game to validate and process
-    const gamesToInsert = [];
+    // Validate + normalize + enforce single tab (so sync deletes don't nuke other tabs)
+    const required = [
+      "gameId",
+      "gameName",
+      "gameImg",
+      "gameCategory",
+      "gameProvider",
+      "gameTab",
+    ];
+    const seen = new Set();
 
-    let order = 1;
+    let tabId = null;
 
-    for (const gameData of gamesData) {
-      const {
-        gameId,
-        gameName,
-        gameImg,
-        gameDemo,
-        gameCategory,
-        gameTab, // This is the ObjectId referring to the ShowGame collection
-        gameProvider,
-      } = gameData;
-
-      // Validate required fields for each game
-      if (
-        !gameId ||
-        !gameName ||
-        !gameImg ||
-        !gameCategory ||
-        !gameProvider ||
-        !gameTab
-      ) {
-        return res.status(400).json({
-          error: "Required fields are missing for one of the games",
+    const incoming = gamesData.map((g, idx) => {
+      const missing = required.filter((k) => !g?.[k]);
+      if (missing.length) {
+        throw Object.assign(new Error("VALIDATION_ERROR"), {
+          status: 400,
+          details: { index: idx, missing, received: g },
         });
       }
 
-      // Prevent duplicate gameId
-      const exists = await Game.findOne({ gameId });
-      if (exists) {
-        return res
-          .status(400)
-          .json({ error: `gameId ${gameId} already exists` });
+      if (seen.has(g.gameId)) {
+        throw Object.assign(new Error("DUPLICATE_GAMEID"), {
+          status: 400,
+          details: { index: idx, gameId: g.gameId },
+        });
+      }
+      seen.add(g.gameId);
+
+      if (!tabId) tabId = String(g.gameTab);
+      if (String(g.gameTab) !== tabId) {
+        throw Object.assign(new Error("MULTIPLE_TABS"), {
+          status: 400,
+          details: {
+            message:
+              "All games in req.body must share the same gameTab for sync",
+          },
+        });
       }
 
-      // Look up the ShowGame to get gameTab info (either "top" or "hot")
-      const showGame = await ShowGame.findById(gameTab);
-      if (!showGame) {
-        return res.status(400).json({ error: "Invalid gameTab ID" });
-      }
-
-      // Prepare the game data with the calculated order
-      const game = {
-        gameId,
-        gameName,
-        gameImg,
-        gameDemo,
-        gameCategory,
-        gameTab, // This will be the ObjectId referencing ShowGame
-        gameProvider,
-        order, // Automatically set the order based on existing games in the same tab
+      return {
+        gameId: g.gameId,
+        gameName: g.gameName,
+        gameImg: g.gameImg,
+        gameDemo: g.gameDemo,
+        gameCategory: g.gameCategory,
+        gameTab: g.gameTab,
+        gameProvider: g.gameProvider,
+        order: idx + 1, // req.body is the truth
+        updatedBy: "system",
       };
+    });
 
-      gamesToInsert.push(game); // Add the game to the insert list
-      order++;
+    // Validate ShowGame tab exists
+    const showGame = await ShowGame.findById(tabId).session(session);
+    if (!showGame) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ error: "Invalid gameTab ID" });
     }
 
-    // Insert all games at once
-    const savedGames = await Game.insertMany(gamesToInsert);
+    const baseFilter = { updatedBy: "system", gameTab: tabId };
 
-    // Broadcast all game creations
-    savedGames.forEach((game) => {
-      broadcast({
-        type: "GAME_UPDATED",
-        action: "create",
-        game,
+    const existingSystemGames = await Game.find(baseFilter)
+      .select("gameId")
+      .lean()
+      .session(session);
+
+    // If no system games yet => insert all
+    if (existingSystemGames.length === 0) {
+      const inserted = await Game.insertMany(incoming, { session });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      inserted.forEach((game) =>
+        broadcast({ type: "GAME_UPDATED", action: "create", game })
+      );
+
+      return res.status(201).json({
+        message: `Inserted ${inserted.length} system games for tab=${tabId}`,
+        games: inserted,
       });
-    });
+    }
 
-    res.status(201).json({
-      message: `${savedGames.length} games created successfully`,
-      games: savedGames,
+    // Otherwise: Sync discrepancies
+    const existingIds = new Set(existingSystemGames.map((g) => g.gameId));
+    const incomingIds = new Set(incoming.map((g) => g.gameId));
+
+    // delete DB games not present in req.body
+    const idsToDelete = [...existingIds].filter((id) => !incomingIds.has(id));
+
+    let deletedDocs = [];
+    if (idsToDelete.length) {
+      deletedDocs = await Game.find({
+        ...baseFilter,
+        gameId: { $in: idsToDelete },
+      })
+        .lean()
+        .session(session);
+
+      await Game.deleteMany({
+        ...baseFilter,
+        gameId: { $in: idsToDelete },
+      }).session(session);
+    }
+
+    // upsert all incoming (updates existing + inserts missing)
+    await Game.bulkWrite(
+      incoming.map((g) => ({
+        updateOne: {
+          filter: { ...baseFilter, gameId: g.gameId },
+          update: { $set: g },
+          upsert: true,
+        },
+      })),
+      { session }
+    );
+
+    const synced = await Game.find(baseFilter)
+      .sort({ order: 1 })
+      .lean()
+      .session(session);
+
+    await session.commitTransaction();
+    session.endSession();
+
+    // Broadcast changes
+    deletedDocs.forEach((game) =>
+      broadcast({ type: "GAME_UPDATED", action: "delete", game })
+    );
+    synced.forEach((game) =>
+      broadcast({ type: "GAME_UPDATED", action: "sync", game })
+    );
+
+    return res.status(200).json({
+      message: `Synced tab=${tabId}. Deleted extras: ${idsToDelete.length}. Current: ${synced.length}.`,
+      deleted: idsToDelete,
+      games: synced,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    await session.abortTransaction();
+    session.endSession();
+
+    if (error.status === 400 && error.message === "VALIDATION_ERROR") {
+      return res.status(400).json({
+        error: "Required fields are missing for one of the games",
+        ...error.details,
+      });
+    }
+    if (error.status === 400 && error.message === "DUPLICATE_GAMEID") {
+      return res
+        .status(400)
+        .json({ error: "Duplicate gameId in request body", ...error.details });
+    }
+    if (error.status === 400 && error.message === "MULTIPLE_TABS") {
+      return res.status(400).json({ error: error.details.message });
+    }
+
+    return res.status(500).json({ error: error.message });
   }
 };
 
 export const updateGameOrder = async (req, res) => {
   try {
-    const { id1, id2 } = req.body;
+    const gameOrders = req.body; // [{ _id, order, gameName? }, ...]
 
-    if (!id1 || !id2) {
-      return res.status(400).json({ error: "id1 and id2 are required" });
-    }
-    if (id1 === id2) {
-      return res.json({
-        message: "IDs are identical. No switch performed.",
-        updated: false,
-      });
+    if (!Array.isArray(gameOrders) || gameOrders.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "gameOrders must be a non-empty array" });
     }
 
-    const g1 = await Game.findById(id1);
-    const g2 = await Game.findById(id2);
-    if (!g1 || !g2) {
-      return res.status(404).json({ error: "One or both games not found" });
+    // Basic payload validation
+    for (const g of gameOrders) {
+      if (!g?._id || typeof g.order !== "number") {
+        return res
+          .status(400)
+          .json({ error: "Each item must contain {_id, order:number}" });
+      }
     }
 
-    const order1 = g1.order;
-    const order2 = g2.order;
+    // Optional: ensure there are no duplicate orders in the update set
+    const orders = gameOrders.map((g) => g.order);
+    if (new Set(orders).size !== orders.length) {
+      return res
+        .status(400)
+        .json({ error: "Duplicate 'order' values in payload" });
+    }
 
-    await Game.findByIdAndUpdate(id1, { order: order2 });
-    await Game.findByIdAndUpdate(id2, { order: order1 });
+    // Bulk update (fast + safe)
+    const ops = gameOrders.map((g) => ({
+      updateOne: {
+        filter: { _id: new mongoose.Types.ObjectId(g._id) },
+        update: { $set: { order: g.order } },
+      },
+    }));
 
-    // ✅ populate so response shape matches GET /games
-    const updated1 = await Game.findById(id1).populate("gameTab");
-    const updated2 = await Game.findById(id2).populate("gameTab");
+    const bulkResult = await Game.bulkWrite(ops, { ordered: true });
 
-    broadcast({
-      type: "GAME_UPDATED",
-      action: "order-switch",
-      games: [updated1, updated2],
-    });
+    // Fetch updated docs to return/broadcast (keeps response consistent)
+    const ids = gameOrders.map((g) => g._id);
+    const updatedGames = await Game.find({ _id: { $in: ids } }).lean();
+
+    // broadcast to clients (if you have this wired)
+    // broadcast({
+    //   type: "GAME_UPDATED",
+    //   action: "order-reorder",
+    //   games: updatedGames,
+    // });
 
     return res.json({
-      message: "Order switched successfully",
+      message: "Order updated successfully",
       updated: true,
-      games: {
-        [id1]: updated1,
-        [id2]: updated2,
-      },
+      modifiedCount:
+        bulkResult.modifiedCount ?? bulkResult.nModified ?? undefined,
+      games: updatedGames,
     });
   } catch (error) {
-    console.error("Switch order failed:", error);
-    return res.status(500).json({ error: "Failed to switch game order" });
+    console.error("Update order failed:", error);
+    return res.status(500).json({ error: "Failed to arrange order" });
   }
 };
 
@@ -158,6 +258,7 @@ export const createGame = async (req, res) => {
       gameCategory,
       gameTab,
       gameProvider,
+      updatedBy,
     } = req.body;
 
     // Validate required fields
@@ -199,6 +300,7 @@ export const createGame = async (req, res) => {
       gameTab, // Save the reference to ShowGame here
       gameProvider,
       order, // Automatically set order
+      updatedBy,
     });
 
     const savedGame = await game.save();

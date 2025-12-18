@@ -6,7 +6,7 @@ import {
   updateGame,
   deleteGame,
   deleteManyGames,
-  createTopGames,
+  syncTopGames,
   updateGameOrder,
 } from "../controllers/gameController.js";
 
@@ -15,8 +15,8 @@ const router = express.Router();
 // Admin routes
 router.post("/", createGame);
 router.get("/", getGames);
-router.put("/reorder", updateGameOrder);
-router.post("/bulk-insert", createTopGames);
+router.post("/reorder", updateGameOrder);
+router.post("/bulk-insert", syncTopGames);
 router.post("/bulk-delete", deleteManyGames);
 
 router.get("/:id", getGameById);
