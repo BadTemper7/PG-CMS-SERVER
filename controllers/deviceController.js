@@ -4,7 +4,7 @@ import DeviceMedia from "../models/DeviceMedia.js";
 import { broadcast } from "../wsServer.js";
 import { generateToken, hashToken } from "../utils/deviceToken.js";
 
-const OFFLINE_SECONDS = 90;
+const OFFLINE_SECONDS = 15;
 
 export const registerDevice = async (req, res) => {
   try {

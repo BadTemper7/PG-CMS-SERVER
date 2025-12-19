@@ -15,9 +15,9 @@ router.post("/register", registerDevice);
 router.get("/:deviceId/config", getDeviceConfig);
 router.post("/:deviceId/heartbeat", heartbeat);
 router.post("/:deviceId/status", updatePlaybackStatus);
-router.post("/:deviceId/reset-token", resetDeviceToken);
 
 // Admin
 router.get("/", listDevices);
+router.post("/:deviceId/reset-token", resetDeviceToken);
 
 export default router;
