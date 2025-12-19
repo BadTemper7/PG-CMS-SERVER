@@ -18,20 +18,35 @@ export const registerDevice = async (req, res) => {
     const device = await Device.findOneAndUpdate(
       { deviceId },
       {
-        deviceId,
-        name,
-        location,
-        tokenHash,
-        lastSeenAt: new Date(),
-        lastState: "idle",
+        $set: { deviceId, name, location, tokenHash },
+        $setOnInsert: { lastState: "idle" },
       },
       { upsert: true, new: true, runValidators: true }
     );
 
     broadcast({ type: "DEVICE_UPDATED", action: "register", deviceId });
 
-    // return token ONCE
     res.status(201).json({ deviceId: device.deviceId, token });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+export const resetDeviceToken = async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const device = await Device.findOne({ deviceId });
+    if (!device) return res.status(404).json({ error: "Device not found" });
+
+    const token = generateToken();
+    device.tokenHash = hashToken(token);
+
+    // ✅ do NOT touch lastSeenAt
+    await device.save();
+
+    broadcast({ type: "DEVICE_UPDATED", action: "token_reset", deviceId });
+
+    // return token ONCE
+    res.json({ deviceId, token });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
