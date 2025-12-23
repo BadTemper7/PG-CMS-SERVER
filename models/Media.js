@@ -9,6 +9,8 @@ const mediaSchema = new mongoose.Schema(
     size: { type: Number },
     checksum: { type: String },
     active: { type: Boolean, default: true }, // GLOBAL active/inactive (optional)
+    cloudinaryPublicId: { type: String, default: null },
+    cloudinarySecureUrl: { type: String, default: null },
   },
   { timestamps: true }
 );

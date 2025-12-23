@@ -1,29 +1,41 @@
-// cron/expireBanners.js
 import cron from "node-cron";
 import Banner from "../models/Banner.js";
 import { broadcast } from "../wsServer.js";
 
 export const expireBannersJob = () => {
-  // Runs every day at midnight
-  cron.schedule("0 0 * * *", async () => {
-    const today = new Date();
+  cron.schedule(
+    "* * * * *", // every minute
+    async () => {
+      const now = new Date();
 
-    try {
-      const result = await Banner.updateMany(
-        {
-          expiry: { $lte: today },
-          status: { $ne: "Expired" }, // update only Active or Hide
-        },
-        { status: "Expired" }
-      );
+      try {
+        const toExpire = await Banner.find(
+          { expiry: { $ne: null, $lte: now }, status: { $ne: "expired" } },
+          { _id: 1 }
+        ).lean();
 
-      broadcast({
-        type: "BANNER_UPDATED",
-        action: "expired",
-      });
-      console.log(`Expired banners updated: ${result.modifiedCount}`);
-    } catch (err) {
-      console.error("Error auto-expiring banners:", err);
-    }
-  });
+        if (!toExpire.length) return;
+
+        const ids = toExpire.map((b) => b._id);
+
+        const result = await Banner.updateMany(
+          { _id: { $in: ids } },
+          { status: "expired" }
+        );
+
+        broadcast({
+          type: "BANNER_UPDATED",
+          action: "expired",
+          ids: ids.map(String),
+          modifiedCount: result.modifiedCount,
+          ts: now.toISOString(),
+        });
+
+        console.log(`Expired banners updated: ${result.modifiedCount}`);
+      } catch (err) {
+        console.error("Error auto-expiring banners:", err);
+      }
+    },
+    { timezone: "Asia/Manila" }
+  );
 };

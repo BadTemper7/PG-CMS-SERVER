@@ -1,94 +1,112 @@
-import crypto from "crypto";
-import fs from "fs";
+// controllers/mediaController.js
+import multer from "multer";
+import cloudinary from "../config/cloudinary.js";
 import Media from "../models/Media.js";
-import { broadcast } from "../wsServer.js";
-import path from "path";
-import { fileURLToPath } from "url";
 import DeviceMedia from "../models/DeviceMedia.js";
+import { broadcast } from "../wsServer.js";
 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 200 * 1024 * 1024, // 200MB (adjust)
+  },
+});
+
+export const uploadMiddleware = upload.single("file");
+
+const uploadToCloudinaryVideo = (buffer, opts = {}) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: "video",
+        folder: process.env.CLOUDINARY_FOLDER || "pg-cms/videos",
+        overwrite: true,
+        ...opts,
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+
+    stream.end(buffer);
+  });
+};
+
+// POST /api/media/upload
 export const uploadMedia = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-    const fileBuffer = fs.readFileSync(req.file.path);
-    const checksum = crypto.createHash("md5").update(fileBuffer).digest("hex");
+    const f = req.file;
+    if (f.mimetype !== "video/mp4") {
+      return res.status(400).json({ error: "Only MP4 videos are allowed" });
+    }
 
-    const media = await Media.create({
-      originalName: req.file.originalname,
-      filename: req.file.filename,
-      url: `/uploads/${req.file.filename}`,
-      mimeType: req.file.mimetype,
-      size: req.file.size,
-      checksum,
-      active: true,
+    // upload buffer to Cloudinary
+    const result = await uploadToCloudinaryVideo(f.buffer, {
+      public_id: undefined, // auto
     });
 
-    broadcast({ type: "MEDIA_UPDATED", action: "create", media });
+    // save to DB
+    const doc = await Media.create({
+      originalName: f.originalname,
+      filename: f.originalname,
+      mimeType: f.mimetype,
+      size: f.size,
 
-    res.status(201).json({ message: "Uploaded", media });
+      // IMPORTANT: store Cloudinary URL
+      url: result.secure_url,
+      cloudinarySecureUrl: result.secure_url,
+      cloudinaryPublicId: result.public_id,
+    });
+
+    broadcast({
+      type: "MEDIA_UPDATED",
+      action: "upload",
+      mediaId: String(doc._id),
+    });
+
+    return res.json({ message: "Uploaded", media: doc });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 };
 
-export const listMedia = async (req, res) => {
-  const media = await Media.find().sort({ createdAt: -1 }).lean();
-  res.json(media);
-};
-
-export const setMediaActive = async (req, res) => {
-  try {
-    const { active } = req.body;
-    const media = await Media.findByIdAndUpdate(
-      req.params.id,
-      { active: !!active },
-      { new: true, runValidators: true }
-    ).lean();
-
-    if (!media) return res.status(404).json({ error: "Media not found" });
-
-    broadcast({ type: "MEDIA_UPDATED", action: "update", media });
-    res.json({ message: "Updated", media });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-};
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const UPLOAD_DIR = path.join(__dirname, "..", "uploads");
-
+// DELETE /api/media/:id
 export const deleteMedia = async (req, res) => {
   try {
-    const media = await Media.findById(req.params.id).lean();
+    const { id } = req.params;
+
+    const media = await Media.findById(id);
     if (!media) return res.status(404).json({ error: "Media not found" });
 
-    // build file path from stored url or filename
-    // url example: /uploads/1766037087501-938624063.mp4
-    const fileNameFromUrl = media.url?.split("/").pop();
-    const fileName = fileNameFromUrl || media.filename;
-    const filePath = fileName ? path.join(UPLOAD_DIR, fileName) : null;
-
-    // 1) remove file from disk
-    if (filePath) {
+    // 1) delete cloudinary asset (best effort)
+    if (media.cloudinaryPublicId) {
       try {
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        await cloudinary.uploader.destroy(media.cloudinaryPublicId, {
+          resource_type: "video",
+        });
       } catch (err) {
-        // don't hard-fail if file is missing; still remove DB record
-        console.warn("[DELETE MEDIA] Failed to delete file:", err.message);
+        console.warn("Cloudinary delete failed:", err?.message || err);
+        // continue anyway so DB doesn't keep broken rows
       }
     }
 
-    // 2) delete DeviceMedia mappings (recommended)
-    await DeviceMedia.deleteMany({ mediaId: media._id });
+    // 2) remove assignments
+    await DeviceMedia.deleteMany({ mediaId: id });
 
-    // 3) delete media from DB
-    await Media.deleteOne({ _id: media._id });
+    // 3) remove DB media
+    await Media.deleteOne({ _id: id });
 
-    broadcast({ type: "MEDIA_UPDATED", action: "delete", mediaId: media._id });
+    broadcast({
+      type: "MEDIA_UPDATED",
+      action: "delete",
+      mediaId: String(id),
+    });
 
-    res.json({ message: "Media deleted", mediaId: media._id });
+    return res.json({ message: "Deleted" });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 };

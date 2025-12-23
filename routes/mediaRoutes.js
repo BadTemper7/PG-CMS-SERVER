@@ -8,6 +8,7 @@ import {
   listMedia,
   setMediaActive,
   deleteMedia, // ✅ add
+  uploadMiddleware,
 } from "../controllers/mediaController.js";
 
 const router = express.Router();
@@ -28,6 +29,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+router.post("/upload", uploadMiddleware, uploadMedia);
 router.post("/upload", upload.single("file"), uploadMedia);
 router.get("/", listMedia);
 router.patch("/:id/active", setMediaActive);
