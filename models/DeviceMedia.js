@@ -17,6 +17,7 @@ const deviceMediaSchema = new mongoose.Schema(
     active: { type: Boolean, default: true },
     start_date: { type: Date },
     end_date: { type: Date },
+    is_expired: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

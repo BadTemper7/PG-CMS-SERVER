@@ -204,9 +204,8 @@ export const listDevices = async (req, res) => {
     const last = d.lastSeenAt ? new Date(d.lastSeenAt).getTime() : 0;
     const offline = !last || (now - last) / 1000 > OFFLINE_SECONDS;
 
-    let status = "offline";
-    if (!offline)
-      status = d.lastState === "playing" ? "running/playing" : "online-idle";
+    // ✅ only online/offline
+    const status = offline ? "offline" : "online";
 
     return { ...d, status };
   });
