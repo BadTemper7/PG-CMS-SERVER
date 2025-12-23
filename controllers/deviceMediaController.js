@@ -198,9 +198,6 @@ export const bulkAssignMediaToDevices = async (req, res) => {
     const media = await Media.findById(mediaId).lean();
     if (!media) return res.status(404).json({ error: "Media not found" });
 
-    const { start_date, end_date, error } = normalizeStartEnd(req.body);
-    if (error) return res.status(400).json({ error });
-
     const rawDeviceIds = targets.map((t) => t?.deviceId).filter(Boolean);
 
     const invalidIds = rawDeviceIds.filter(
@@ -237,13 +234,21 @@ export const bulkAssignMediaToDevices = async (req, res) => {
         continue;
       }
 
+      // ✅ READ DATES FROM TARGET ITEM (NOT req.body)
+      const { start_date, end_date, error } = normalizeStartEnd(t);
+      if (error) {
+        rejected.push({ deviceId: deviceMongoId, reason: error });
+        continue;
+      }
+
       const updateDoc = {
         deviceId: deviceMongoId,
         mediaId,
         active: !!active,
-        order: Number(order) || 0,
+        order: Number(t?.order ?? order) || 0, // allow per-target order override if you want
       };
-      if (start_date !== undefined) updateDoc.start_date = start_date;
+
+      if (start_date !== undefined) updateDoc.start_date = start_date; // Date or null
       if (end_date !== undefined) updateDoc.end_date = end_date;
 
       const row = await DeviceMedia.findOneAndUpdate(
@@ -469,15 +474,10 @@ export const syncMediaTargets = async (req, res) => {
     const media = await Media.findById(mediaId).lean();
     if (!media) return res.status(404).json({ error: "Media not found" });
 
-    const patch = {};
-    if ("active" in req.body) patch.active = !!req.body.active;
-    if ("order" in req.body) patch.order = Number(req.body.order) || 0;
-
-    const { start_date, end_date, error } = normalizeStartEnd(req.body);
-    if (error) return res.status(400).json({ error });
-
-    if (start_date !== undefined) patch.start_date = start_date;
-    if (end_date !== undefined) patch.end_date = end_date;
+    // ✅ only global fields here
+    const patchBase = {};
+    if ("active" in req.body) patchBase.active = !!req.body.active;
+    if ("order" in req.body) patchBase.order = Number(req.body.order) || 0;
 
     const rawTargetIds = targets.map((t) => t?.deviceId).filter(Boolean);
 
@@ -517,16 +517,34 @@ export const syncMediaTargets = async (req, res) => {
     );
 
     const upserted = [];
+
     for (const deviceMongoId of targetDeviceMongoIds) {
       const device = deviceMap.get(deviceMongoId);
 
+      // ✅ find the matching target object and normalize dates from it
+      const t =
+        targets.find((x) => String(x?.deviceId) === String(deviceMongoId)) ||
+        {};
+
+      const { start_date, end_date, error } = normalizeStartEnd(t);
+      if (error) {
+        // If one target has bad date, stop and return error (or you can reject only that target)
+        return res.status(400).json({ error, deviceId: deviceMongoId });
+      }
+
+      const patch = {
+        ...patchBase,
+        // allow per-target overrides if you want:
+        ...(t?.active !== undefined ? { active: !!t.active } : {}),
+        ...(t?.order !== undefined ? { order: Number(t.order) || 0 } : {}),
+      };
+
+      if (start_date !== undefined) patch.start_date = start_date;
+      if (end_date !== undefined) patch.end_date = end_date;
+
       const row = await DeviceMedia.findOneAndUpdate(
         { deviceId: deviceMongoId, mediaId },
-        {
-          deviceId: deviceMongoId,
-          mediaId,
-          ...patch, // active/order/start_date/end_date if provided
-        },
+        { deviceId: deviceMongoId, mediaId, ...patch },
         { upsert: true, new: true, runValidators: true }
       ).lean();
 
@@ -555,6 +573,7 @@ export const syncMediaTargets = async (req, res) => {
       })
         .select("_id deviceId")
         .lean();
+
       const removedDeviceMap = new Map(
         removedDevices.map((d) => [String(d._id), d])
       );
@@ -586,7 +605,7 @@ export const syncMediaTargets = async (req, res) => {
     res.json({
       message: "Synced media targets",
       mediaId: String(mediaId),
-      patch,
+      patchBase,
       targetCount: targetDeviceMongoIds.length,
       removedCount: toRemoveDeviceIds.length,
       upserted,
