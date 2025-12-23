@@ -1,3 +1,4 @@
+// controllers/deviceController.js
 import Device from "../models/Device.js";
 import Media from "../models/Media.js";
 import DeviceMedia from "../models/DeviceMedia.js";
@@ -31,6 +32,7 @@ export const registerDevice = async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 };
+
 export const resetDeviceToken = async (req, res) => {
   try {
     const { deviceId } = req.params;
@@ -146,16 +148,24 @@ export const getDeviceConfig = async (req, res) => {
 
     const mediaMap = new Map(medias.map((m) => [String(m._id), m]));
 
+    // ✅ IMPORTANT: include start_date / end_date from assignment rows
     const items = assignments
       .map((a) => {
         const m = mediaMap.get(String(a.mediaId));
         if (!m) return null;
+
         return {
-          mediaId: m._id,
+          mediaId: String(m._id),
           url: m.url,
           checksum: m.checksum,
           originalName: m.originalName,
-          order: a.order,
+          order: Number(a.order) || 0,
+
+          // ✅ schedule (ISO strings or null)
+          start_date: a.start_date
+            ? new Date(a.start_date).toISOString()
+            : null,
+          end_date: a.end_date ? new Date(a.end_date).toISOString() : null,
         };
       })
       .filter(Boolean);
@@ -172,7 +182,7 @@ export const getDeviceConfig = async (req, res) => {
       items,
       defaultVideo: defaultMedia
         ? {
-            mediaId: defaultMedia._id,
+            mediaId: String(defaultMedia._id),
             url: defaultMedia.url,
             checksum: defaultMedia.checksum,
             originalName: defaultMedia.originalName,
