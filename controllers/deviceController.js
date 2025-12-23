@@ -96,7 +96,8 @@ export const updatePlaybackStatus = async (req, res) => {
     const device = await assertDeviceAuth(req);
     const { state, currentMediaId, currentMediaName } = req.body;
 
-    device.lastSeenAt = new Date();
+    // ❌ remove this line:
+    // device.lastSeenAt = new Date();
 
     if (state) {
       if (!["idle", "playing"].includes(state)) {
