@@ -15,7 +15,8 @@ const deviceMediaSchema = new mongoose.Schema(
       index: true,
     },
     active: { type: Boolean, default: true },
-    order: { type: Number, default: 0 },
+    start_date: { type: Date },
+    end_date: { type: Date },
   },
   { timestamps: true }
 );

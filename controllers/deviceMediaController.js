@@ -5,6 +5,29 @@ import DeviceMedia from "../models/DeviceMedia.js";
 import mongoose from "mongoose";
 import { sendToDeviceBoth, broadcast } from "../wsServer.js";
 
+// ---------- helpers ----------
+const parseOptionalDate = (v) => {
+  if (v === undefined) return undefined; // "not provided" (do not change)
+  if (v === null || v === "") return null; // explicit clear
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? "INVALID_DATE" : d;
+};
+
+const normalizeStartEnd = (body) => {
+  const start = parseOptionalDate(body.start_date);
+  const end = parseOptionalDate(body.end_date);
+
+  if (start === "INVALID_DATE") return { error: "start_date is invalid" };
+  if (end === "INVALID_DATE") return { error: "end_date is invalid" };
+
+  // If both provided (and not null), enforce end >= start
+  if (start instanceof Date && end instanceof Date && end < start) {
+    return { error: "end_date must be >= start_date" };
+  }
+
+  return { start_date: start, end_date: end };
+};
+
 // Assign media to device (or update if exists)
 // req.body.deviceId is the device CODE (ex: OUTLET-A)
 export const upsertDeviceMedia = async (req, res) => {
@@ -23,17 +46,26 @@ export const upsertDeviceMedia = async (req, res) => {
     const media = await Media.findById(mediaId).lean();
     if (!media) return res.status(404).json({ error: "Media not found" });
 
+    const { start_date, end_date, error } = normalizeStartEnd(req.body);
+    if (error) return res.status(400).json({ error });
+
     const deviceMongoId = String(device._id);
     const deviceCode = String(device.deviceId);
 
+    const updateDoc = {
+      deviceId: deviceMongoId,
+      mediaId,
+      active: !!active,
+      order: Number(order) || 0,
+    };
+
+    // only set if provided; allow explicit null to clear
+    if (start_date !== undefined) updateDoc.start_date = start_date;
+    if (end_date !== undefined) updateDoc.end_date = end_date;
+
     const row = await DeviceMedia.findOneAndUpdate(
       { deviceId: deviceMongoId, mediaId },
-      {
-        deviceId: deviceMongoId,
-        mediaId,
-        active: !!active,
-        order: Number(order) || 0,
-      },
+      updateDoc,
       { upsert: true, new: true, runValidators: true }
     ).lean();
 
@@ -45,6 +77,8 @@ export const upsertDeviceMedia = async (req, res) => {
       mediaId: String(mediaId),
       active: row.active,
       order: row.order,
+      start_date: row.start_date ?? null,
+      end_date: row.end_date ?? null,
     };
 
     sendToDeviceBoth({ deviceCode, deviceMongoId }, payload);
@@ -91,6 +125,8 @@ export const listAllDeviceMedia = async (req, res) => {
         : null,
       active: r.active,
       order: r.order,
+      start_date: r.start_date ?? null,
+      end_date: r.end_date ?? null,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     }));
@@ -128,6 +164,8 @@ export const listDeviceMedia = async (req, res) => {
           globalActive: m.active,
           active: a.active,
           order: a.order,
+          start_date: a.start_date ?? null,
+          end_date: a.end_date ?? null,
           createdAt: a.createdAt,
           updatedAt: a.updatedAt,
         };
@@ -159,6 +197,9 @@ export const bulkAssignMediaToDevices = async (req, res) => {
 
     const media = await Media.findById(mediaId).lean();
     if (!media) return res.status(404).json({ error: "Media not found" });
+
+    const { start_date, end_date, error } = normalizeStartEnd(req.body);
+    if (error) return res.status(400).json({ error });
 
     const rawDeviceIds = targets.map((t) => t?.deviceId).filter(Boolean);
 
@@ -196,14 +237,18 @@ export const bulkAssignMediaToDevices = async (req, res) => {
         continue;
       }
 
+      const updateDoc = {
+        deviceId: deviceMongoId,
+        mediaId,
+        active: !!active,
+        order: Number(order) || 0,
+      };
+      if (start_date !== undefined) updateDoc.start_date = start_date;
+      if (end_date !== undefined) updateDoc.end_date = end_date;
+
       const row = await DeviceMedia.findOneAndUpdate(
         { deviceId: deviceMongoId, mediaId },
-        {
-          deviceId: deviceMongoId,
-          mediaId,
-          active: !!active,
-          order: Number(order) || 0,
-        },
+        updateDoc,
         { upsert: true, new: true, runValidators: true }
       ).lean();
 
@@ -217,6 +262,8 @@ export const bulkAssignMediaToDevices = async (req, res) => {
         mediaId: String(mediaId),
         active: row.active,
         order: row.order,
+        start_date: row.start_date ?? null,
+        end_date: row.end_date ?? null,
       };
 
       sendToDeviceBoth({ deviceCode: device.deviceId, deviceMongoId }, payload);
@@ -235,7 +282,7 @@ export const bulkAssignMediaToDevices = async (req, res) => {
   }
 };
 
-// Update per-device active/order (single)
+// Update per-device active/order/dates (single)
 export const updateDeviceMedia = async (req, res) => {
   try {
     const { deviceId, mediaId } = req.params;
@@ -243,6 +290,16 @@ export const updateDeviceMedia = async (req, res) => {
 
     if ("active" in req.body) patch.active = !!req.body.active;
     if ("order" in req.body) patch.order = Number(req.body.order) || 0;
+
+    const { start_date, end_date, error } = normalizeStartEnd(req.body);
+    if (error) return res.status(400).json({ error });
+
+    if (start_date !== undefined) patch.start_date = start_date;
+    if (end_date !== undefined) patch.end_date = end_date;
+
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: "Nothing to update" });
+    }
 
     const row = await DeviceMedia.findOneAndUpdate(
       { deviceId, mediaId },
@@ -266,6 +323,8 @@ export const updateDeviceMedia = async (req, res) => {
       mediaId: String(mediaId),
       active: row.active,
       order: row.order,
+      start_date: row.start_date ?? null,
+      end_date: row.end_date ?? null,
     };
 
     sendToDeviceBoth({ deviceCode, deviceMongoId }, payload);
@@ -277,15 +336,7 @@ export const updateDeviceMedia = async (req, res) => {
   }
 };
 
-// ✅ NEW: Bulk update deviceMedia for one media across many devices
-// Route suggestion: PATCH /api/deviceMedia/media/:mediaId
-// Body:
-// {
-//   "targets": [{ "deviceId": "..." }, ...],
-//   "active": true,
-//   "order": 5,
-//   "upsert": false
-// }
+// Bulk update deviceMedia for one media across many devices
 export const bulkUpdateDeviceMediaForTargets = async (req, res) => {
   try {
     const { mediaId } = req.params;
@@ -304,22 +355,25 @@ export const bulkUpdateDeviceMediaForTargets = async (req, res) => {
         .json({ error: "targets must be a non-empty array" });
     }
 
-    // ensure media exists
     const media = await Media.findById(mediaId).lean();
     if (!media) return res.status(404).json({ error: "Media not found" });
 
-    // build patch
     const patch = {};
     if ("active" in req.body) patch.active = !!req.body.active;
     if ("order" in req.body) patch.order = Number(req.body.order) || 0;
 
+    const { start_date, end_date, error } = normalizeStartEnd(req.body);
+    if (error) return res.status(400).json({ error });
+
+    if (start_date !== undefined) patch.start_date = start_date;
+    if (end_date !== undefined) patch.end_date = end_date;
+
     if (Object.keys(patch).length === 0) {
-      return res
-        .status(400)
-        .json({ error: "Nothing to update (active/order missing)" });
+      return res.status(400).json({
+        error: "Nothing to update (active/order/start_date/end_date missing)",
+      });
     }
 
-    // validate device ids
     const rawDeviceIds = targets.map((t) => t?.deviceId).filter(Boolean);
 
     const invalidIds = rawDeviceIds.filter(
@@ -350,7 +404,6 @@ export const bulkUpdateDeviceMediaForTargets = async (req, res) => {
         continue;
       }
 
-      // update or upsert
       const row = await DeviceMedia.findOneAndUpdate(
         { deviceId: deviceMongoId, mediaId },
         upsert ? { ...patch, deviceId: deviceMongoId, mediaId } : patch,
@@ -358,7 +411,6 @@ export const bulkUpdateDeviceMediaForTargets = async (req, res) => {
       ).lean();
 
       if (!row) {
-        // happens when upsert=false and assignment missing
         rejected.push({
           deviceId: deviceMongoId,
           reason: "Assignment not found",
@@ -376,6 +428,8 @@ export const bulkUpdateDeviceMediaForTargets = async (req, res) => {
         mediaId: String(mediaId),
         ...(row.active !== undefined ? { active: row.active } : {}),
         ...(row.order !== undefined ? { order: row.order } : {}),
+        start_date: row.start_date ?? null,
+        end_date: row.end_date ?? null,
       };
 
       sendToDeviceBoth({ deviceCode: device.deviceId, deviceMongoId }, payload);
@@ -395,6 +449,7 @@ export const bulkUpdateDeviceMediaForTargets = async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 };
+
 export const syncMediaTargets = async (req, res) => {
   try {
     const { mediaId } = req.params;
@@ -411,16 +466,19 @@ export const syncMediaTargets = async (req, res) => {
       return res.status(400).json({ error: "targets must be an array" });
     }
 
-    // ensure media exists
     const media = await Media.findById(mediaId).lean();
     if (!media) return res.status(404).json({ error: "Media not found" });
 
-    // patch fields (optional but usually provided)
     const patch = {};
     if ("active" in req.body) patch.active = !!req.body.active;
     if ("order" in req.body) patch.order = Number(req.body.order) || 0;
 
-    // normalize + validate target device ids
+    const { start_date, end_date, error } = normalizeStartEnd(req.body);
+    if (error) return res.status(400).json({ error });
+
+    if (start_date !== undefined) patch.start_date = start_date;
+    if (end_date !== undefined) patch.end_date = end_date;
+
     const rawTargetIds = targets.map((t) => t?.deviceId).filter(Boolean);
 
     const invalidIds = rawTargetIds.filter(
@@ -433,16 +491,13 @@ export const syncMediaTargets = async (req, res) => {
       });
     }
 
-    // unique target mongo ids
     const targetDeviceMongoIds = [...new Set(rawTargetIds.map(String))];
 
-    // load device docs so we can send deviceCode in WS
     const devices = await Device.find({ _id: { $in: targetDeviceMongoIds } })
       .select("_id deviceId")
       .lean();
     const deviceMap = new Map(devices.map((d) => [String(d._id), d]));
 
-    // any missing device docs => reject
     const missingDevices = targetDeviceMongoIds.filter(
       (id) => !deviceMap.has(id)
     );
@@ -453,17 +508,14 @@ export const syncMediaTargets = async (req, res) => {
       });
     }
 
-    // 1) Find all existing assignments for this media
     const existing = await DeviceMedia.find({ mediaId }).lean();
     const existingDeviceSet = new Set(existing.map((r) => String(r.deviceId)));
     const targetSet = new Set(targetDeviceMongoIds);
 
-    // 2) Determine removals (in existing but not in target)
     const toRemoveDeviceIds = [...existingDeviceSet].filter(
       (d) => !targetSet.has(d)
     );
 
-    // 3) Apply upserts for targets
     const upserted = [];
     for (const deviceMongoId of targetDeviceMongoIds) {
       const device = deviceMap.get(deviceMongoId);
@@ -473,7 +525,7 @@ export const syncMediaTargets = async (req, res) => {
         {
           deviceId: deviceMongoId,
           mediaId,
-          ...patch, // active/order if provided
+          ...patch, // active/order/start_date/end_date if provided
         },
         { upsert: true, new: true, runValidators: true }
       ).lean();
@@ -488,16 +540,16 @@ export const syncMediaTargets = async (req, res) => {
         mediaId: String(mediaId),
         ...(row?.active !== undefined ? { active: row.active } : {}),
         ...(row?.order !== undefined ? { order: row.order } : {}),
+        start_date: row.start_date ?? null,
+        end_date: row.end_date ?? null,
       };
 
       sendToDeviceBoth({ deviceCode: device.deviceId, deviceMongoId }, payload);
       broadcast(payload);
     }
 
-    // 4) Remove assignments not in targets
     const removed = [];
     if (toRemoveDeviceIds.length) {
-      // load device codes for removed devices (for WS)
       const removedDevices = await Device.find({
         _id: { $in: toRemoveDeviceIds },
       })
@@ -507,13 +559,11 @@ export const syncMediaTargets = async (req, res) => {
         removedDevices.map((d) => [String(d._id), d])
       );
 
-      // delete rows
       const del = await DeviceMedia.deleteMany({
         mediaId,
         deviceId: { $in: toRemoveDeviceIds },
       });
 
-      // record removed list (best effort)
       for (const deviceMongoId of toRemoveDeviceIds) {
         removed.push({ deviceId: deviceMongoId });
         const d = removedDeviceMap.get(deviceMongoId);
@@ -546,6 +596,7 @@ export const syncMediaTargets = async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 };
+
 // Remove media from device
 export const removeDeviceMedia = async (req, res) => {
   try {
