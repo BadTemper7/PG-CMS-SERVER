@@ -76,36 +76,26 @@ export const uploadMedia = async (req, res) => {
 // DELETE /api/media/:id
 export const deleteMedia = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { mediaId } = req.params;
 
-    const media = await Media.findById(id);
+    const media = await Media.findById(mediaId);
     if (!media) return res.status(404).json({ error: "Media not found" });
 
-    // 1) delete cloudinary asset (best effort)
+    // 1) delete all assignments first
+    await DeviceMedia.deleteMany({ mediaId });
+
+    // 2) delete from cloudinary (if stored there)
     if (media.cloudinaryPublicId) {
-      try {
-        await cloudinary.uploader.destroy(media.cloudinaryPublicId, {
-          resource_type: "video",
-        });
-      } catch (err) {
-        console.warn("Cloudinary delete failed:", err?.message || err);
-        // continue anyway so DB doesn't keep broken rows
-      }
+      await cloudinary.uploader.destroy(media.cloudinaryPublicId, {
+        resource_type: "video",
+        invalidate: true, // clears CDN cached copies
+      });
     }
 
-    // 2) remove assignments
-    await DeviceMedia.deleteMany({ mediaId: id });
+    // 3) delete DB record
+    await Media.deleteOne({ _id: mediaId });
 
-    // 3) remove DB media
-    await Media.deleteOne({ _id: id });
-
-    broadcast({
-      type: "MEDIA_UPDATED",
-      action: "delete",
-      mediaId: String(id),
-    });
-
-    return res.json({ message: "Deleted" });
+    return res.json({ message: "Deleted (DB + Cloudinary)" });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
