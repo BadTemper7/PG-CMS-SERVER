@@ -157,9 +157,14 @@ export const getDeviceConfig = async (req, res) => {
         const m = mediaMap.get(String(a.mediaId));
         if (!m) return null;
 
+        // ✅ FIX: prefer Cloudinary secure URL when available
+        const url = m.cloudinarySecureUrl || m.url;
+
+        if (!url) return null; // safeguard: don’t send broken entries
+
         return {
           mediaId: String(m._id),
-          url: m.url,
+          url,
           checksum: m.checksum,
           originalName: m.originalName,
           order: Number(a.order) || 0,
@@ -169,6 +174,9 @@ export const getDeviceConfig = async (req, res) => {
             ? new Date(a.start_date).toISOString()
             : null,
           end_date: a.end_date ? new Date(a.end_date).toISOString() : null,
+
+          // (optional) helps debugging; does not affect player if you ignore it
+          active: m.active === true,
         };
       })
       .filter(Boolean);
@@ -186,9 +194,10 @@ export const getDeviceConfig = async (req, res) => {
       defaultVideo: defaultMedia
         ? {
             mediaId: String(defaultMedia._id),
-            url: defaultMedia.url,
+            url: defaultMedia.cloudinarySecureUrl || defaultMedia.url, // ✅ also fix here
             checksum: defaultMedia.checksum,
             originalName: defaultMedia.originalName,
+            active: defaultMedia.active === true, // optional
           }
         : null,
       offlineSeconds: OFFLINE_SECONDS,
