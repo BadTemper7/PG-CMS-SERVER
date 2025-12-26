@@ -96,9 +96,6 @@ export const updatePlaybackStatus = async (req, res) => {
     const device = await assertDeviceAuth(req);
     const { state, currentMediaId, currentMediaName } = req.body;
 
-    // ❌ remove this line:
-    // device.lastSeenAt = new Date();
-
     if (state) {
       if (!["idle", "playing"].includes(state)) {
         return res.status(400).json({ error: "Invalid state" });
@@ -109,7 +106,12 @@ export const updatePlaybackStatus = async (req, res) => {
     if (currentMediaId) device.currentMediaId = currentMediaId;
     if (currentMediaName) device.currentMediaName = currentMediaName;
 
-    if (device.lastState === "playing") device.lastPlaybackAt = new Date();
+    if (device.lastState === "playing") {
+      device.lastPlaybackAt = new Date();
+
+      // ✅ liveness while playing (optional)
+      device.lastSeenAt = new Date();
+    }
 
     await device.save();
 
