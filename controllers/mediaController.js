@@ -56,11 +56,28 @@ export const listMedia = async (req, res) => {
 export const setMediaActive = async (req, res) => {
   try {
     const { mediaId } = req.params;
-    const { active } = req.body;
+
+    // ✅ guard: req.body must exist
+    const raw = req.body?.active;
+
+    // accept booleans or "true"/"false" from clients
+    const active =
+      raw === true || raw === "true"
+        ? true
+        : raw === false || raw === "false"
+        ? false
+        : null;
+
+    if (active === null) {
+      return res.status(400).json({
+        error: "active must be a boolean (true/false)",
+        received: raw,
+      });
+    }
 
     const row = await Media.findByIdAndUpdate(
       mediaId,
-      { active: !!active },
+      { active },
       { new: true, runValidators: true }
     ).lean();
 

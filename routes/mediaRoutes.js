@@ -29,9 +29,9 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-router.post("/upload", uploadMiddleware, uploadMedia);
-router.post("/upload", upload.single("file"), uploadMedia);
 router.get("/", listMedia);
+router.post("/upload", uploadMiddleware, uploadMedia);
+// router.post("/upload", upload.single("file"), uploadMedia);
 router.patch("/:id/active", setMediaActive);
 
 // ✅ remove media (DB + file on disk + device mappings)
