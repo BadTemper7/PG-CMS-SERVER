@@ -55,7 +55,7 @@ export const listMedia = async (req, res) => {
 // PATCH /api/media/:mediaId/active
 export const setMediaActive = async (req, res) => {
   try {
-    const { mediaId } = req.params;
+    const { id } = req.params;
 
     // ✅ guard: req.body must exist
     const raw = req.body?.active;
@@ -76,7 +76,7 @@ export const setMediaActive = async (req, res) => {
     }
 
     const row = await Media.findByIdAndUpdate(
-      mediaId,
+      id,
       { active },
       { new: true, runValidators: true }
     ).lean();
@@ -86,7 +86,7 @@ export const setMediaActive = async (req, res) => {
     broadcast({
       type: "MEDIA_UPDATED",
       action: "active",
-      mediaId: String(mediaId),
+      id: String(id),
       active: row.active,
     });
 
