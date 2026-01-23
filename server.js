@@ -19,6 +19,8 @@ import playlistRoutes from "./routes/playlistRoutes.js";
 import deviceRoutes from "./routes/deviceRoutes.js";
 import assignmentRoutes from "./routes/assignmentRoutes.js";
 import deviceMediaRoutes from "./routes/deviceMediaRoutes.js";
+import outletRoutes from "./routes/outletRoutes.js";
+import videoRoutes from "./routes/videoRoutes.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -58,6 +60,8 @@ async function startServer() {
   app.use("/api/devices", deviceRoutes);
   app.use("/api/deviceMedia", deviceMediaRoutes);
   app.use("/api/assignments", assignmentRoutes);
+  app.use("/api/outlets", outletRoutes);
+  app.use("/api/videos", videoRoutes);
 
   // Create HTTP server manually
   const server = http.createServer(app);
@@ -66,7 +70,7 @@ async function startServer() {
   createWebSocketServer(server);
 
   server.listen(PORT, () =>
-    console.log(`Server + WebSocket running on port ${PORT}`)
+    console.log(`Server + WebSocket running on port ${PORT}`),
   );
 }
 
