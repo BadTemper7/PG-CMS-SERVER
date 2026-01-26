@@ -1,28 +1,21 @@
 import express from "express";
+import multer from "multer";
 import {
-  getVideos,
+  createVideo,
+  listVideos,
   getVideo,
-  uploadVideo,
   updateVideo,
-  setVideoActive,
-  deleteVideo,
-  testCloudinaryConnection,
-  uploadMiddleware,
+  removeVideo,
 } from "../controllers/videoController.js";
 
 const router = express.Router();
 
-// Test endpoint
-router.get("/cloudinary/test", testCloudinaryConnection);
+const upload = multer({ dest: "tmp_uploads/" });
 
-// Upload endpoint
-router.post("/upload", uploadMiddleware, uploadVideo);
-
-// Other endpoints
-router.get("/", getVideos);
-router.get("/:id", getVideo);
-router.put("/:id", updateVideo);
-router.patch("/:id/active", setVideoActive);
-router.delete("/:id", deleteVideo);
+router.get("/", listVideos);
+router.post("/", upload.single("file"), createVideo);
+router.get("/:videoId", getVideo);
+router.put("/:videoId", updateVideo);
+router.delete("/:videoId", removeVideo);
 
 export default router;

@@ -14,13 +14,12 @@ import bannerRoutes from "./routes/bannerRoutes.js";
 import providerRoutes from "./routes/providerRoutes.js";
 import gameRoutes from "./routes/gameRoutes.js";
 import showGameRoutes from "./routes/showGameRoutes.js";
-import mediaRoutes from "./routes/mediaRoutes.js";
-import playlistRoutes from "./routes/playlistRoutes.js";
-import deviceRoutes from "./routes/deviceRoutes.js";
-import assignmentRoutes from "./routes/assignmentRoutes.js";
-import deviceMediaRoutes from "./routes/deviceMediaRoutes.js";
 import outletRoutes from "./routes/outletRoutes.js";
+import terminalRoutes from "./routes/terminalRoutes.js";
 import videoRoutes from "./routes/videoRoutes.js";
+import outletVideoAssignmentRoutes from "./routes/outletVideoAssignmentRoutes.js";
+import playbackRoutes from "./routes/playbackRoutes.js";
+import terminalDetailsRoutes from "./routes/terminalDetailsRoutes.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -34,7 +33,6 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
-
 async function startServer() {
   await connectDB();
 
@@ -55,13 +53,12 @@ async function startServer() {
   app.use("/api/providers", providerRoutes);
   app.use("/api/games", gameRoutes);
   app.use("/api/showGames", showGameRoutes);
-  app.use("/api/media", mediaRoutes);
-  app.use("/api/playlists", playlistRoutes);
-  app.use("/api/devices", deviceRoutes);
-  app.use("/api/deviceMedia", deviceMediaRoutes);
-  app.use("/api/assignments", assignmentRoutes);
   app.use("/api/outlets", outletRoutes);
+  app.use("/api/terminals", terminalRoutes);
   app.use("/api/videos", videoRoutes);
+  app.use("/api/assignments", outletVideoAssignmentRoutes);
+  app.use("/api/playback", playbackRoutes);
+  app.use("/api/terminals", terminalDetailsRoutes);
 
   // Create HTTP server manually
   const server = http.createServer(app);
