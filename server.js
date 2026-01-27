@@ -6,6 +6,7 @@ import { connectDB } from "./utils/db.js";
 import { expireNotificationsJob } from "./cron/expireNotifications.js";
 import { expireBannersJob } from "./cron/expireBanners.js";
 import { expireAnnouncementsJob } from "./cron/expireAnnouncements.js";
+import { startTerminalOfflineCheck } from "./cron/checkTerminalsOffline.js";
 
 import announcementRoutes from "./routes/announcementRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
@@ -40,6 +41,7 @@ async function startServer() {
   expireNotificationsJob();
   expireBannersJob();
   expireAnnouncementsJob();
+  startTerminalOfflineCheck();
 
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);

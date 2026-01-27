@@ -5,6 +5,7 @@ import {
   deleteCloudinaryVideo,
 } from "../services/cloudinaryService.js";
 import OutletVideoAssignment from "../models/OutletVideoAssignment.js";
+import Outlet from "../models/Outlet.js";
 import Terminal from "../models/Terminal.js";
 import { broadcast, sendToDeviceBoth, sendToDevice } from "../wsServer.js";
 
@@ -154,18 +155,102 @@ export const removeVideo = async (req, res) => {
     const row = await Video.findById(req.params.videoId).lean();
     if (!row) return res.status(404).json({ error: "Video not found" });
 
+    // Delete video from the Video collection
     await Video.deleteOne({ _id: row._id });
 
-    // optional: also remove from Cloudinary
+    // Delete related outlet assignments from OutletVideoAssignment
+    await OutletVideoAssignment.deleteMany({ videoId: row._id });
+
+    // Optional: Remove from Cloudinary
     if (deleteCloudinary === "true") {
       try {
         await deleteCloudinaryVideo(row.publicId);
-      } catch {
-        // ignore cloudinary errors, because DB already deleted
+      } catch (cloudError) {
+        // Ignore Cloudinary errors (video is already deleted from DB)
+        console.error("Error deleting video from Cloudinary:", cloudError);
       }
     }
 
-    return res.json({ message: "Deleted" });
+    return res.json({ message: "Video and its assignments have been deleted" });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+};
+export const getOutletsForVideo = async (req, res) => {
+  try {
+    const { videoId } = req.params;
+
+    // 1) Video details
+    const video = await Video.findById(videoId).lean();
+    if (!video) return res.status(404).json({ error: "Video not found" });
+
+    // 2) All assignments for this video (optionally you can filter active only)
+    const assignments = await OutletVideoAssignment.find({ videoId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!assignments || assignments.length === 0) {
+      return res.json({
+        video,
+        totalAssignedOutlets: 0,
+        assignments: [],
+      });
+    }
+
+    // 3) Load all outlets referenced by assignments
+    const outletIds = [...new Set(assignments.map((a) => String(a.outletId)))];
+
+    const outlets = await Outlet.find({ _id: { $in: outletIds } }).lean();
+
+    // Build quick lookup map outletId -> outlet
+    const outletById = new Map(outlets.map((o) => [String(o._id), o]));
+
+    // 4) Shape response: per-assignment include outlet + start/end
+    const detailed = assignments
+      .map((a) => {
+        const outlet = outletById.get(String(a.outletId));
+        if (!outlet) return null; // outlet deleted/missing
+
+        return {
+          outletAssigned: {
+            assignmentId: String(a._id),
+            active: a.active !== false,
+            startAt: a.startAt ?? null,
+            endAt: a.endAt ?? null,
+            createdAt: a.createdAt ?? null,
+            updatedAt: a.updatedAt ?? null,
+          },
+          outlet: {
+            _id: String(outlet._id),
+            code: outlet.code,
+            name: outlet.name,
+            location: outlet.location,
+            siteValue: outlet.siteValue,
+            active: outlet.active,
+            createdAt: outlet.createdAt ?? null,
+            updatedAt: outlet.updatedAt ?? null,
+          },
+        };
+      })
+      .filter(Boolean);
+
+    return res.json({
+      video: {
+        _id: String(video._id),
+        title: video.title,
+        description: video.description,
+        active: video.active,
+        publicId: video.publicId,
+        secureUrl: video.secureUrl, // ✅ important
+        bytes: video.bytes,
+        durationSec: video.durationSec,
+        format: video.format,
+        createdAt: video.createdAt ?? null,
+        updatedAt: video.updatedAt ?? null,
+      },
+      totalAssignedOutlets: detailed.length,
+      assignments: detailed,
+    });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

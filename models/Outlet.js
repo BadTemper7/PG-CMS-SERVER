@@ -7,6 +7,7 @@ const outletSchema = new mongoose.Schema(
       required: true,
       trim: true,
       unique: true,
+      index: true,
     },
     name: { type: String, required: true, trim: true },
     location: { type: String, trim: true },
@@ -16,6 +17,7 @@ const outletSchema = new mongoose.Schema(
       required: true,
       trim: true,
       unique: true,
+      index: true,
     },
 
     active: { type: Boolean, default: true },

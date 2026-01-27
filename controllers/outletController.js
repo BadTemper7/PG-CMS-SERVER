@@ -1,4 +1,6 @@
 import Outlet from "../models/Outlet.js";
+import OutletVideoAssignment from "../models/OutletVideoAssignment.js";
+import Terminal from "../models/Terminal.js";
 
 export const createOutlet = async (req, res) => {
   try {
@@ -69,9 +71,33 @@ export const updateOutlet = async (req, res) => {
 
 export const removeOutlet = async (req, res) => {
   try {
-    const row = await Outlet.findByIdAndDelete(req.params.outletId).lean();
-    if (!row) return res.status(404).json({ error: "Outlet not found" });
-    return res.json({ message: "Deleted" });
+    const { outletId } = req.params;
+
+    // Find and delete the outlet
+    const outlet = await Outlet.findByIdAndDelete(outletId).lean();
+    if (!outlet) return res.status(404).json({ error: "Outlet not found" });
+
+    // Also remove the associated outletVideoAssignments
+    const videoAssignmentsResult = await OutletVideoAssignment.deleteMany({
+      outletId,
+    });
+    if (videoAssignmentsResult.deletedCount > 0) {
+      console.log(
+        `[INFO] Removed ${videoAssignmentsResult.deletedCount} outlet video assignments for outlet ${outletId}`,
+      );
+    }
+
+    // Delete terminals associated with the outlet
+    const terminalsResult = await Terminal.deleteMany({ outletId });
+    if (terminalsResult.deletedCount > 0) {
+      console.log(
+        `[INFO] Removed ${terminalsResult.deletedCount} terminals for outlet ${outletId}`,
+      );
+    }
+
+    return res.json({
+      message: "Outlet, its assignments, and terminals deleted",
+    });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
