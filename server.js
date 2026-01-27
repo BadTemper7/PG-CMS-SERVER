@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectDB } from "./utils/db.js";
-import http from "http"; // Using the built-in http module
+import https from "https"; // Use the https module for external requests
 
 import { expireNotificationsJob } from "./cron/expireNotifications.js";
 import { expireBannersJob } from "./cron/expireBanners.js";
@@ -35,16 +35,16 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Function to perform the ping request using built-in http module
+// Function to perform the ping request using https module
 const pingServer = () => {
   const options = {
-    hostname: "localhost",
-    port: PORT,
-    path: "/ping",
+    hostname: "pg-cms-server.onrender.com", // External URL
+    port: 443, // Default HTTPS port
+    path: "/ping", // Optional, define your ping route in your external server
     method: "GET",
   };
 
-  const req = http.request(options, (res) => {
+  const req = https.request(options, (res) => {
     if (res.statusCode === 200) {
       console.log("[PING] Server ping successful");
     } else {
@@ -89,7 +89,7 @@ async function startServer() {
   app.use("/api/terminals", terminalDetailsRoutes);
 
   // Create HTTP server manually
-  const server = http.createServer(app);
+  const server = https.createServer(app);
 
   // Attach WebSocket to same server
   createWebSocketServer(server);
