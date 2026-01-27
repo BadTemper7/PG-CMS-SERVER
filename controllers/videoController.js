@@ -161,17 +161,35 @@ export const removeVideo = async (req, res) => {
     // Delete related outlet assignments from OutletVideoAssignment
     await OutletVideoAssignment.deleteMany({ videoId: row._id });
 
-    // Optional: Remove from Cloudinary
-    if (deleteCloudinary === "true") {
+    // Optional: Remove from Cloudinary - FIXED COMPARISON
+    const shouldDeleteFromCloudinary =
+      deleteCloudinary.toLowerCase() === "true";
+    if (shouldDeleteFromCloudinary && row.publicId) {
       try {
         await deleteCloudinaryVideo(row.publicId);
+        console.log(`Deleted video from Cloudinary: ${row.publicId}`);
       } catch (cloudError) {
-        // Ignore Cloudinary errors (video is already deleted from DB)
-        console.error("Error deleting video from Cloudinary:", cloudError);
+        // Log the error but don't fail the request
+        console.error(
+          "Error deleting video from Cloudinary:",
+          cloudError.message,
+        );
+        // You might want to notify admin that Cloudinary deletion failed
       }
     }
 
-    return res.json({ message: "Video and its assignments have been deleted" });
+    // Notify all connected devices that video was deleted
+    broadcast({
+      type: "VIDEO_DELETED",
+      videoId: String(row._id),
+      deletedFromCloudinary: shouldDeleteFromCloudinary,
+    });
+
+    return res.json({
+      message: "Video and its assignments have been deleted",
+      deletedFromCloudinary: shouldDeleteFromCloudinary,
+      videoId: String(row._id),
+    });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

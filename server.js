@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectDB } from "./utils/db.js";
+import http from "http"; // Using the built-in http module
 
 import { expireNotificationsJob } from "./cron/expireNotifications.js";
 import { expireBannersJob } from "./cron/expireBanners.js";
@@ -25,7 +26,6 @@ import terminalDetailsRoutes from "./routes/terminalDetailsRoutes.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import http from "http";
 import { createWebSocketServer } from "./wsServer.js";
 
 dotenv.config();
@@ -34,6 +34,31 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+// Function to perform the ping request using built-in http module
+const pingServer = () => {
+  const options = {
+    hostname: "localhost",
+    port: PORT,
+    path: "/ping",
+    method: "GET",
+  };
+
+  const req = http.request(options, (res) => {
+    if (res.statusCode === 200) {
+      console.log("[PING] Server ping successful");
+    } else {
+      console.error("[PING] Server ping failed with status:", res.statusCode);
+    }
+  });
+
+  req.on("error", (error) => {
+    console.error("[PING] Error with ping request:", error);
+  });
+
+  req.end();
+};
+
 async function startServer() {
   await connectDB();
 
@@ -47,6 +72,7 @@ async function startServer() {
   const __dirname = path.dirname(__filename);
 
   app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
   // routes
   app.use("/api/announcements", announcementRoutes);
   app.use("/api/notifications", notificationRoutes);
@@ -71,6 +97,14 @@ async function startServer() {
   server.listen(PORT, () =>
     console.log(`Server + WebSocket running on port ${PORT}`),
   );
+
+  // Ping the server every 14 minutes (840000 ms)
+  setInterval(pingServer, 840000); // 840000 ms = 14 minutes
 }
+
+// Add a simple ping endpoint for health check
+app.get("/ping", (req, res) => {
+  res.status(200).send("Server is alive!");
+});
 
 startServer();
