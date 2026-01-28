@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectDB } from "./utils/db.js";
-import https from "https"; // Use the https module for external requests
+import http from "http"; // Use the https module for external requests
 
 import { expireNotificationsJob } from "./cron/expireNotifications.js";
 import { expireBannersJob } from "./cron/expireBanners.js";
@@ -44,7 +44,7 @@ const pingServer = () => {
     method: "GET",
   };
 
-  const req = https.request(options, (res) => {
+  const req = http.request(options, (res) => {
     if (res.statusCode === 200) {
       console.log("[PING] Server ping successful");
     } else {
@@ -89,7 +89,7 @@ async function startServer() {
   app.use("/api/terminals", terminalDetailsRoutes);
 
   // Create HTTP server manually
-  const server = https.createServer(app);
+  const server = http.createServer(app);
 
   // Attach WebSocket to same server
   createWebSocketServer(server);
