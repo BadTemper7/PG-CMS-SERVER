@@ -2,7 +2,8 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectDB } from "./utils/db.js";
-import http from "http"; // Use the https module for external requests
+import http from "http";
+import cron from "node-cron"; // Add node-cron import
 
 import { expireNotificationsJob } from "./cron/expireNotifications.js";
 import { expireBannersJob } from "./cron/expireBanners.js";
@@ -35,30 +36,6 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Function to perform the ping request using https module
-const pingServer = () => {
-  const options = {
-    hostname: "pg-cms-server.onrender.com", // External URL
-    port: 443, // Default HTTPS port
-    path: "/ping", // Optional, define your ping route in your external server
-    method: "GET",
-  };
-
-  const req = http.request(options, (res) => {
-    if (res.statusCode === 200) {
-      console.log("[PING] Server ping successful");
-    } else {
-      console.error("[PING] Server ping failed with status:", res.statusCode);
-    }
-  });
-
-  req.on("error", (error) => {
-    console.error("[PING] Error with ping request:", error);
-  });
-
-  req.end();
-};
-
 async function startServer() {
   await connectDB();
 
@@ -67,6 +44,9 @@ async function startServer() {
   expireBannersJob();
   expireAnnouncementsJob();
   startTerminalOfflineCheck();
+
+  // Self-pinging cron job to keep server awake
+  startSelfPingCron();
 
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
@@ -88,6 +68,28 @@ async function startServer() {
   app.use("/api/playback", playbackRoutes);
   app.use("/api/terminals", terminalDetailsRoutes);
 
+  // Health check endpoint
+  app.get("/health", (req, res) => {
+    res.status(200).json({
+      status: "healthy",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+    });
+  });
+
+  // Root endpoint
+  app.get("/", (req, res) => {
+    res.json({
+      message: "Server is running",
+      timestamp: new Date().toISOString(),
+      endpoints: [
+        "/health - Health check",
+        "/api/* - API endpoints",
+        "/uploads/* - Static files",
+      ],
+    });
+  });
+
   // Create HTTP server manually
   const server = http.createServer(app);
 
@@ -97,14 +99,75 @@ async function startServer() {
   server.listen(PORT, () =>
     console.log(`Server + WebSocket running on port ${PORT}`),
   );
-
-  // Ping the server every 14 minutes (840000 ms)
-  setInterval(pingServer, 840000); // 840000 ms = 14 minutes
 }
 
-// Add a simple ping endpoint for health check
-app.get("/ping", (req, res) => {
-  res.status(200).send("Server is alive!");
-});
+// Function to self-ping the server
+function startSelfPingCron() {
+  // Schedule self-ping every 10 minutes
+  // Cron pattern: '*/10 * * * *' means every 10 minutes
+  cron.schedule("*/10 * * * *", async () => {
+    try {
+      const serverUrl = process.env.SERVER_URL || `http://localhost:${PORT}`;
+      console.log(`[${new Date().toISOString()}] Self-pinging server...`);
+
+      // Ping the health endpoint
+      const response = await fetch(`${serverUrl}/health`);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`Server ping successful:`, data);
+      } else {
+        console.log(`Server ping failed with status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Error during self-ping:", error.message);
+
+      // If the server is running locally, try to ping localhost
+      if (process.env.NODE_ENV !== "production") {
+        try {
+          const localResponse = await fetch(`http://localhost:${PORT}/health`);
+          console.log(`Local ping result: ${localResponse.status}`);
+        } catch (localError) {
+          console.error("Local ping also failed:", localError.message);
+        }
+      }
+    }
+  });
+
+  console.log("Self-ping cron job scheduled (every 10 minutes)");
+}
+
+// Alternative: Use setInterval for simpler implementation (without node-cron)
+function startSelfPingInterval() {
+  // Ping every 10 minutes (600000 milliseconds)
+  const PING_INTERVAL = 10 * 60 * 1000;
+
+  const pingServer = async () => {
+    try {
+      const serverUrl = process.env.SERVER_URL || `http://localhost:${PORT}`;
+      console.log(`[${new Date().toISOString()}] Self-pinging server...`);
+
+      const response = await fetch(`${serverUrl}/health`);
+
+      if (response.ok) {
+        console.log(`Server ping successful`);
+      } else {
+        console.log(`Server ping failed with status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Error during self-ping:", error.message);
+    }
+  };
+
+  // Initial ping
+  pingServer();
+
+  // Set up recurring ping
+  setInterval(pingServer, PING_INTERVAL);
+
+  console.log(
+    `Self-ping interval scheduled (every ${PING_INTERVAL / 60000} minutes)`,
+  );
+}
 
 startServer();
