@@ -1,6 +1,6 @@
 import Outlet from "../models/Outlet.js";
 import Terminal from "../models/Terminal.js";
-import { sendToDeviceBoth } from "../wsServer.js";
+import { broadcast, sendToDeviceBoth } from "../wsServer.js";
 import mongoose from "mongoose";
 
 export const createTerminal = async (req, res) => {
