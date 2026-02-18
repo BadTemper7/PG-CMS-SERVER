@@ -162,14 +162,34 @@ export const updateTurnoverValue = async (req, res) => {
       });
     }
 
-    const setting = await Setting.findOneAndUpdate(
-      { key: "turnover_value" },
-      {
+    // First check if the setting exists
+    let setting = await Setting.findOne({ key: "turnover_value" });
+
+    if (setting) {
+      // Update existing setting
+      setting.value = amount;
+      setting.updatedAt = Date.now();
+      await setting.save();
+
+      console.log("Updated existing setting:", setting);
+    } else {
+      // Create new setting with ALL required fields
+      setting = new Setting({
+        settingType: "system",
+        key: "turnover_value",
         value: amount,
-        updatedAt: Date.now(),
-      },
-      { upsert: true, new: true },
-    );
+        label: "Turnover Value",
+        description: "Current turnover value for testing purposes",
+        dataType: "number",
+        isEditable: true,
+        category: "general",
+        order: 1,
+        // Add any other required fields from your schema
+      });
+      await setting.save();
+
+      console.log("Created new setting:", setting);
+    }
 
     return res.status(200).json({
       success: true,

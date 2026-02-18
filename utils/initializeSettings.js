@@ -7,7 +7,7 @@ export const initializeSettings = async () => {
       {
         settingType: "system",
         key: "turnover_value",
-        value: 25000,
+        value: 0,
         label: "Turnover Value",
         description: "Current turnover value for testing purposes",
         dataType: "number",
