@@ -24,7 +24,8 @@ import outletVideoAssignmentRoutes from "./routes/outletVideoAssignmentRoutes.js
 import playbackRoutes from "./routes/playbackRoutes.js";
 import terminalDetailsRoutes from "./routes/terminalDetailsRoutes.js";
 import levelupRewardsRoutes from "./routes/levelUpRewardsRoutes.js";
-
+import settingRoutes from "./routes/settingRoutes.js";
+import { initializeSettings } from "./utils/initializeSettings.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -40,6 +41,7 @@ app.use(express.json());
 
 async function startServer() {
   await connectDB();
+  await initializeSettings();
 
   // cron jobs
   expireNotificationsJob();
@@ -70,6 +72,7 @@ async function startServer() {
   app.use("/api/playback", playbackRoutes);
   app.use("/api/terminals", terminalDetailsRoutes);
   app.use("/api/levelup-rewards", levelupRewardsRoutes);
+  app.use("/api/settings", settingRoutes);
 
   // Health check endpoint
   app.get("/health", (req, res) => {
