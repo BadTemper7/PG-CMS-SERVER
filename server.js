@@ -23,6 +23,8 @@ import videoRoutes from "./routes/videoRoutes.js";
 import outletVideoAssignmentRoutes from "./routes/outletVideoAssignmentRoutes.js";
 import playbackRoutes from "./routes/playbackRoutes.js";
 import terminalDetailsRoutes from "./routes/terminalDetailsRoutes.js";
+import levelupRewardsRoutes from "./routes/levelUpRewardsRoutes.js";
+
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -67,6 +69,7 @@ async function startServer() {
   app.use("/api/assignments", outletVideoAssignmentRoutes);
   app.use("/api/playback", playbackRoutes);
   app.use("/api/terminals", terminalDetailsRoutes);
+  app.use("/api/levelup-rewards", levelupRewardsRoutes);
 
   // Health check endpoint
   app.get("/health", (req, res) => {
